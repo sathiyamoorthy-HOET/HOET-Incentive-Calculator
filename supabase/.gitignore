@@ -1,0 +1,4 @@
+# Supabase CLI local state — contains linked-project details and pooler URLs.
+.branches
+.temp
+.env

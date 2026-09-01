@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HOET Incentive</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#16202E; --ink-2:#243247; --rail:#16202E;
+  --paper:#F6F7F9; --card:#FFFFFF; --line:#E3E7ED; --line-2:#CFD6E0;
+  --muted:#6B7688; --amber:#E8A33D; --amber-d:#8A5F12; --amber-bg:#FDF4E4;
+  --teal:#2E9077; --teal-bg:#E7F4EF; --red:#C64A3E; --red-bg:#FBECEA;
+  --r:7px;
+  --num:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--ui);background:var(--paper);color:var(--ink);font-size:14px;line-height:1.5}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums}
+
+header{background:var(--rail);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+header h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.2px}
+header .sp{flex:1}
+header input[type=text]{background:#0E1621;border:1px solid #2C3A4E;color:#fff;padding:6px 10px;border-radius:var(--r);width:150px}
+.tabs{display:flex;gap:2px;background:var(--rail);padding:0 22px}
+.tabs button{background:none;border:0;color:#9AA6B8;padding:11px 16px;cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+.tabs button:hover{color:#fff}
+.tabs button[aria-selected=true]{color:#fff;border-bottom-color:var(--amber)}
+.tabs button:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+
+main{padding:24px 22px 60px;max-width:1500px;margin:0 auto}
+.panel{display:none}.panel.on{display:block}
+h2{font-size:19px;margin:0 0 4px;font-weight:600}
+.sub{color:var(--muted);margin:0 0 20px;max-width:74ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:18px}
+.card h3{margin:0 0 12px;font-size:15px;font-weight:600}
+
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:11.5px;font-weight:600;color:var(--muted);padding:0 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:7px 10px;border-bottom:1px solid #F0F2F5;vertical-align:middle}
+tbody tr:hover{background:#FAFBFC}
+tfoot td{border-top:2px solid var(--line-2);border-bottom:0;font-weight:600;padding-top:10px}
+td input,td select{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:5px;background:#fff}
+td input:focus,td select:focus{outline:2px solid var(--amber);outline-offset:-1px;border-color:var(--amber)}
+td input.n{text-align:right;font-family:var(--num)}
+
+.btn{background:var(--ink);color:#fff;border:0;padding:8px 15px;border-radius:var(--r);cursor:pointer;font-weight:500}
+.btn:hover{background:var(--ink-2)}
+.btn.g{background:var(--teal)}.btn.g:hover{background:#25765F}
+.btn.o{background:#fff;color:var(--ink);border:1px solid var(--line-2)}.btn.o:hover{background:#F3F5F8}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.x{background:none;border:0;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;font-size:16px;line-height:1}
+.x:hover{background:var(--red-bg);color:var(--red)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:600}
+.pill.a{background:var(--amber-bg);color:var(--amber-d)}
+.pill.t{background:var(--teal-bg);color:#1E6B55}
+.pill.r{background:var(--red-bg);color:var(--red)}
+.pill.n{background:#EEF1F5;color:var(--muted)}
+
+.drop{border:2px dashed var(--line-2);border-radius:var(--r);padding:44px 20px;text-align:center;background:#fff;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--amber);background:var(--amber-bg)}
+.drop strong{display:block;font-size:16px;margin-bottom:5px}
+.drop span{color:var(--muted)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.kpi b{display:block;font-size:27px;font-weight:600;font-family:var(--num);font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi span{color:var(--muted);font-size:12px}
+.kpi.hi b{color:var(--teal)}
+.kpi.warn b{color:var(--red)}
+
+.note{background:var(--amber-bg);border:1px solid #EFD9AE;border-radius:var(--r);padding:12px 15px;margin-bottom:16px;color:var(--amber-d)}
+.note.bad{background:var(--red-bg);border-color:#F0CFCA;color:var(--red)}
+.note.ok{background:var(--teal-bg);border-color:#BFE3D5;color:#1E6B55}
+.empty{text-align:center;padding:52px 20px;color:var(--muted)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.g2{grid-template-columns:1fr}}
+.scroll{overflow-x:auto}
+.bar{height:5px;background:#EEF1F5;border-radius:3px;overflow:hidden;min-width:56px}
+.bar i{display:block;height:100%;background:var(--teal)}
+.bar i.under{background:var(--amber)}
+tr.clk{cursor:pointer}
+tr.clk .tw{color:var(--muted);font-size:10px;display:inline-block;width:11px}
+tr.det{display:none}
+tr.det.on{display:table-row}
+tr.det td{background:#F4F6F9;padding:0}
+.detbox{padding:12px 16px 14px 34px}
+.detbox table{background:#fff;border:1px solid var(--line);border-radius:6px}
+.detbox th{padding:7px 10px 6px}
+.detbox td{padding:5px 10px}
+label.fld{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.ov{position:fixed;inset:0;background:rgba(22,32,46,.92);color:#fff;display:none;
+  align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:99;pointer-events:none}
+.ov.on{display:flex}
+.ov b{font-size:26px;font-weight:600}
+.ov span{color:#9AA6B8}
+.actbar{background:var(--ink);color:#fff;border-radius:var(--r);padding:15px 18px;margin-bottom:18px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.actbar .t{font-size:15px;font-weight:600}
+.actbar .m{color:#9AA6B8;font-size:12.5px}
+.actbar .btn.g{padding:10px 18px;font-size:14.5px}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden}
+.seg button{background:#fff;border:0;padding:6px 13px;cursor:pointer;color:var(--muted);font-size:13px}
+.seg button+button{border-left:1px solid var(--line-2)}
+.seg button[aria-pressed=true]{background:var(--ink);color:#fff;font-weight:600}
+.fld-in{padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:#fff;width:110px;text-align:right;font-family:var(--num)}
+</style>
+</head>
+<body>
+
+<div class="ov" id="ov"><b>Drop the report to run it</b><span>Excel or CSV</span></div>
+
+<header>
+  <h1>HOET Incentive</h1>
+  <div class="row" style="gap:7px">
+    <span style="color:#9AA6B8;font-size:12px">Month</span>
+    <input type="text" id="month" placeholder="e.g. August 2026">
+  </div>
+  <div class="sp"></div>
+  <div class="row">
+    <button class="btn o" id="saveCfg">Download settings</button>
+    <button class="btn o" id="loadCfgBtn">Load settings</button>
+    <input type="file" id="loadCfg" accept=".json" hidden>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-p="run" aria-selected="true">Run a month</button>
+  <button role="tab" data-p="results" aria-selected="false">Results</button>
+  <button role="tab" data-p="team" aria-selected="false">Team</button>
+  <button role="tab" data-p="rates" aria-selected="false">Rate card</button>
+  <button role="tab" data-p="map" aria-selected="false">Video types</button>
+</nav>
+
+<main>
+
+<!-- RUN -->
+<section class="panel on" id="p-run">
+  <h2>Run a month</h2>
+  <p class="sub">Upload the monthly delivery report. The tool reads each editor, the video type and the minutes delivered, then works out points, target and incentive.</p>
+  <div class="drop" id="drop" tabindex="0" role="button">
+    <strong>Drop the report here, or click to choose a file</strong>
+    <span>Or drop it anywhere on this page. Excel or CSV. Nothing leaves your computer.</span>
+  </div>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+  <div id="runOut"></div>
+</section>
+
+<!-- RESULTS -->
+<section class="panel" id="p-results">
+  <h2>Results</h2>
+  <p class="sub">Incentive is earned only on points above target.</p>
+  <div id="resOut"><div class="empty">Upload a report on the Run a month tab to see results.</div></div>
+</section>
+
+<!-- TEAM -->
+<section class="panel" id="p-team">
+  <h2>Team</h2>
+  <p class="sub">Slab sets the points rate. Work pattern sets the monthly target. Reduce days available for approved leave, joiners and leavers.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn" id="addEd">Add editor</button>
+      <button class="btn o" id="teamCsv">Export team list</button>
+      <span id="teamCount" style="color:var(--muted);margin-left:auto"></span>
+    </div>
+    <div class="scroll"><table id="teamTbl">
+      <thead><tr><th>Editor</th><th style="width:120px">Slab</th><th style="width:150px">Work pattern</th>
+      <th class="r" style="width:110px">Days available</th><th class="r" style="width:100px">Target</th><th style="width:40px"></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- RATES -->
+<section class="panel" id="p-rates">
+  <h2>Rate card</h2>
+  <p class="sub">Base rate is what a slab A editor earns per minute. The uplift is the allowance less experienced editors receive while they learn.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:14px">
+      <h3 style="margin:0">Points per minute</h3>
+      <div class="seg" role="group" aria-label="How to set B, C and D rates">
+        <button id="mUp" aria-pressed="true">From uplift %</button><button id="mDir" aria-pressed="false">Enter each rate</button>
+      </div>
+      <button class="btn" id="addRate" style="margin-left:auto">Add video type</button>
+    </div>
+    <div class="scroll"><table id="rateTbl"><thead></thead><tbody></tbody></table></div>
+    <p class="sub" style="margin:12px 0 0">Rename a type here and the mapping follows it. Length is the size of one
+      typical deliverable and is used only for the effort check below.</p>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <h3>Target and payout</h3>
+      <div class="row" style="gap:18px;align-items:flex-end">
+        <div><label class="fld" for="ppd">Points per working day</label><input class="fld-in" id="ppd" type="number" step="0.5"></div>
+        <div><label class="fld" for="rate">Incentive per point above target</label><input class="fld-in" id="rate" type="number" step="5"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Work patterns</h3>
+      <div class="scroll"><table id="patTbl">
+        <thead><tr><th>Pattern</th><th class="r" style="width:120px">Standard days</th><th class="r" style="width:120px">Target points</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Effort check</h3>
+    <p class="sub" style="margin-bottom:12px">Each rate turned into working days per deliverable. Ask the managers whether these match reality. If one is wrong, change the base rate rather than the uplift.</p>
+    <div class="scroll"><table id="effTbl">
+      <thead><tr><th>Deliverable</th><th class="r">A</th><th class="r">B</th><th class="r">C</th><th class="r">D</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- MAP -->
+<section class="panel" id="p-map">
+  <h2>Video types</h2>
+  <p class="sub">Each type recorded in the report maps to one payable category. New types can be added here without changing the rate card. Anything left unmapped scores nothing and is flagged after every run.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn" id="addMap">Add type</button>
+      <span id="mapCount" style="color:var(--muted);margin-left:auto"></span>
+    </div>
+    <div class="scroll"><table id="mapTbl">
+      <thead><tr><th style="width:38%">Type as recorded</th><th>Payable category</th><th class="r" style="width:110px">Points/min (A)</th><th style="width:40px"></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+"use strict";
+const NOTPAY="Not payable";
+const SLABS=["A","B","C","D"];
+const EXP={A:"6+ years",B:"3-6 years",C:"1-3 years",D:"Fresher"};
+
+const DEFAULT={
+  ppd:30, rate:125, mode:"uplift",
+  patterns:[{name:"5-day Office",days:21.7,target:650},{name:"6-day WFH",days:24.3,target:730}],
+  rates:[
+    {cat:"Organic - A (Motion Graphics)",     len:10, r:[10,12,13,13.5]},
+    {cat:"Organic - B (Screen records)",      len:10, r:[5,5.5,5.75,6]},
+    {cat:"Shorts / Ads / Testimonials",       len:1,  r:[15,16.5,17.25,18]},
+    {cat:"LMS - Drops",                       len:20, r:[1.5,1.8,1.83,2.025]},
+    {cat:"Podcast / Trailer / Testimonials",  len:15, r:[6,6.9,7.32,7.5]},
+    {cat:"Events - Glimpses",                 len:5,  r:[30,36,36.6,40.5]}
+  ],
+  map:[["Ads","Shorts / Ads / Testimonials"],["Shorts","Shorts / Ads / Testimonials"],
+       ["Short Form","Shorts / Ads / Testimonials"],["Reel","Shorts / Ads / Testimonials"],
+       ["Motivation Reel","Shorts / Ads / Testimonials"],
+       ["Podcast","Podcast / Trailer / Testimonials"],
+       ["Organic","Organic - A (Motion Graphics)"],["Long Form","Organic - A (Motion Graphics)"],
+       ["Longform","Organic - A (Motion Graphics)"],["Documentary Edit","Organic - A (Motion Graphics)"],
+       ["Video Edit","Organic - A (Motion Graphics)"],["Poster",NOTPAY]],
+  ignore:[],
+  team:[
+    ...["Prince Tiwari","Kiran Koppal","Mallikarjun Myagalamani","Krishna Sharma","Vikash","Midhlaj Anver KK"].map(n=>({n,s:"A"})),
+    ...["Sunain Swapnajit","Lakshmi Prasad","Santhosh Kumar S","Hariharan G","Deepjoti Acharjee","Adesh Singh",
+        "Vivek Mhaisdhune","Bhoomika L","Vishal Roopchandani","Vikrant Raju Sansare","Rajesh D Raikar"].map(n=>({n,s:"B"})),
+    ...["Vivek Dutonde","Aditya Kadlag","Dhairya Ramesh Dholu","Vishnu Sreejith","Anil Fulmali","Gunjan Aher",
+        "Sakshi","Sarthak","Suraj","Siddhesh Dipak","Gaurav Suman"].map(n=>({n,s:"C"})),
+    ...["Dhanush","Priya Rajesh Kaithwas","Karan G","Sahaana Shankar","Mahasweta Maity","Nithin Kumar N","Surabi B R"].map(n=>({n,s:"D"}))
+  ].map(e=>({name:e.n,slab:e.s,pattern:"5-day Office",days:null,alias:[]}))
+};
+
+function cats(){ return C.rates.map(r=>r.cat).concat([NOTPAY]); }
+
+let C=null, RUN=null;
+
+/* ---------- storage ---------- */
+function migrate(c){
+  if(!c||!c.rates) return JSON.parse(JSON.stringify(DEFAULT));
+  const LEGACY={"Organic - A (Motion Graphics)":10,"Organic - B (Screen records)":10,
+    "Shorts / Ads / Testimonials":1,"LMS - Drops":20,"Podcast / Trailer / Testimonials":15,"Events - Glimpses":5};
+  c.rates=c.rates.map(r=>{
+    if(!r.r) r.r=[r.base,round(r.base*(1+r.up[0]),4),round(r.base*(1+r.up[1]),4),round(r.base*(1+r.up[2]),4)];
+    if(r.len==null) r.len=LEGACY[r.cat]||10;
+    delete r.base; delete r.up; return r;
+  });
+  c.mode=c.mode||"uplift"; c.ignore=c.ignore||[];
+  c.map=(c.map||[]).map(m=>[m[0], m[1]==="Design / Non-video (unpriced)"?NOTPAY:m[1]]);
+  return c;
+}
+function load(){
+  try{const r=localStorage.getItem("hoet_incentive_v1"); if(r) return migrate(JSON.parse(r));}catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT));
+}
+function save(){ try{localStorage.setItem("hoet_incentive_v1",JSON.stringify(C));}catch(e){} }
+
+/* ---------- helpers ---------- */
+const round=(v,d=1)=>Math.round(v*10**d)/10**d;
+const inr=v=>"\u20B9"+Math.round(v).toLocaleString("en-IN");
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function rateFor(cat,slab){
+  const r=C.rates.find(x=>x.cat===cat);
+  return r?(r.r[SLABS.indexOf(slab)]||0):0;
+}
+function upliftOf(r,i){ return r.r[0]?(r.r[i]/r.r[0]-1):0; }
+function pattern(name){ return C.patterns.find(p=>p.name===name)||C.patterns[0]; }
+function daysOf(e){ return e.days==null?pattern(e.pattern).days:e.days; }
+function targetOf(e){ const p=pattern(e.pattern); return round(p.target*daysOf(e)/p.days,0); }
+function catOf(type){
+  const t=String(type??"").trim().toLowerCase();
+  if(!t) return null;
+  const m=C.map.find(x=>x[0].trim().toLowerCase()===t);
+  return m?m[1]:null;
+}
+
+/* ---------- name matching ---------- */
+function toks(s){
+  return String(s||"").toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(t=>t.length>1);
+}
+function lev(a,b){
+  const m=a.length,n=b.length; if(!m||!n) return Math.max(m,n);
+  let prev=Array.from({length:n+1},(_,j)=>j),cur=new Array(n+1);
+  for(let i=1;i<=m;i++){ cur[0]=i;
+    for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    [prev,cur]=[cur,prev];
+  }
+  return prev[n];
+}
+const tsim=(a,b)=>1-lev(a,b)/Math.max(a.length,b.length);
+function nameScore(a,b){
+  const A=toks(a),B=toks(b); if(!A.length||!B.length) return 0;
+  const [S,L]=A.length<=B.length?[A,B]:[B,A];
+  let sum=0;
+  for(const t of S) sum+=Math.max(...L.map(u=>tsim(t,u)));
+  return sum/S.length;
+}
+function matchEditor(raw){
+  for(const e of C.team){
+    if(e.name.toLowerCase()===String(raw).toLowerCase()) return {e,score:1};
+    if((e.alias||[]).some(a=>a.toLowerCase()===String(raw).toLowerCase())) return {e,score:1};
+  }
+  let best=null,bs=0;
+  for(const e of C.team){ const s=nameScore(raw,e.name); if(s>bs){bs=s;best=e;} }
+  return {e:best,score:bs};
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id==="p-"+b.dataset.p));
+});
+function goTab(p){ document.querySelector('.tabs button[data-p="'+p+'"]').click(); }
+
+/* ---------- rate card ---------- */
+function drawRates(){
+  document.getElementById("ppd").value=C.ppd;
+  document.getElementById("rate").value=C.rate;
+  const up=C.mode!=="direct";
+  document.getElementById("mUp").setAttribute("aria-pressed",up);
+  document.getElementById("mDir").setAttribute("aria-pressed",!up);
+
+  const head=up
+    ? ['<th>Video type</th><th class="r" style="width:78px">Length</th><th class="r" style="width:84px">A rate</th>',
+       '<th class="r" style="width:74px">B +%</th><th class="r" style="width:74px">C +%</th><th class="r" style="width:74px">D +%</th>',
+       '<th class="r" style="width:62px">B</th><th class="r" style="width:62px">C</th><th class="r" style="width:62px">D</th><th style="width:34px"></th>'].join("")
+    : ['<th>Video type</th><th class="r" style="width:78px">Length</th>',
+       SLABS.map(s=>'<th class="r" style="width:82px">'+s+' rate</th>').join(""),
+       '<th style="width:34px"></th>'].join("");
+  document.querySelector("#rateTbl thead").innerHTML="<tr>"+head+"</tr>";
+
+  const tb=document.querySelector("#rateTbl tbody"); tb.innerHTML="";
+  C.rates.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    let cells='<td><input data-k="cat" data-i="'+i+'" value="'+esc(r.cat)+'"></td>'+
+              '<td><input class="n" type="number" step="1" min="0" data-k="len" data-i="'+i+'" value="'+r.len+'"></td>';
+    if(up){
+      cells+='<td><input class="n" type="number" step="0.1" min="0" data-k="r" data-s="0" data-i="'+i+'" value="'+r.r[0]+'"></td>'+
+        [1,2,3].map(s=>'<td><input class="n" type="number" step="1" data-k="up" data-s="'+s+'" data-i="'+i+'" value="'+Math.round(upliftOf(r,s)*100)+'"></td>').join("")+
+        [1,2,3].map(s=>'<td class="r num" style="color:var(--muted)">'+round(r.r[s],2)+'</td>').join("");
+    }else{
+      cells+=[0,1,2,3].map(s=>'<td><input class="n" type="number" step="0.1" min="0" data-k="r" data-s="'+s+'" data-i="'+i+'" value="'+round(r.r[s],3)+'"></td>').join("");
+    }
+    cells+='<td><button class="x" data-rdel="'+i+'" aria-label="Remove video type">\u00d7</button></td>';
+    tr.innerHTML=cells; tb.appendChild(tr);
+  });
+
+  tb.querySelectorAll("input").forEach(inp=>inp.onchange=()=>{
+    const i=+inp.dataset.i, r=C.rates[i], k=inp.dataset.k;
+    if(k==="cat"){
+      const old=r.cat, nu=inp.value.trim();
+      if(!nu||C.rates.some((x,j)=>j!==i&&x.cat===nu)){ drawRates(); return; }
+      C.map.forEach(m=>{ if(m[1]===old) m[1]=nu; });
+      r.cat=nu;
+    } else if(k==="len"){ r.len=Math.max(0,parseFloat(inp.value)||0); }
+    else if(k==="r"){
+      const s=+inp.dataset.s, v=Math.max(0,parseFloat(inp.value)||0);
+      if(up&&s===0){ const f=r.r[0]?v/r.r[0]:0; r.r=r.r.map((x,j)=>j===0?v:round(x*f,4)); }
+      else r.r[s]=v;
+    } else if(k==="up"){
+      const s=+inp.dataset.s; r.r[s]=round(r.r[0]*(1+(parseFloat(inp.value)||0)/100),4);
+    }
+    save(); drawRates(); drawEff(); drawMap(); if(RUN) compute(RUN.rows);
+  });
+  tb.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{
+    const r=C.rates[+b.dataset.rdel];
+    const used=C.map.filter(m=>m[1]===r.cat).length;
+    if(used&&!confirm(used+" video type"+(used>1?"s are":" is")+' mapped to "'+r.cat+'". Removing it will move them to Not payable. Continue?')) return;
+    C.map.forEach(m=>{ if(m[1]===r.cat) m[1]=NOTPAY; });
+    C.rates.splice(+b.dataset.rdel,1);
+    save(); drawRates(); drawEff(); drawMap(); if(RUN) compute(RUN.rows);
+  });
+
+  const pb=document.querySelector("#patTbl tbody"); pb.innerHTML="";
+  C.patterns.forEach((p,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML='<td>'+esc(p.name)+'</td>'+
+      '<td><input class="n" type="number" step="0.1" data-pk="days" data-i="'+i+'" value="'+p.days+'"></td>'+
+      '<td><input class="n" type="number" step="10" data-pk="target" data-i="'+i+'" value="'+p.target+'"></td>';
+    pb.appendChild(tr);
+  });
+  pb.querySelectorAll("input").forEach(inp=>inp.onchange=()=>{
+    C.patterns[+inp.dataset.i][inp.dataset.pk]=parseFloat(inp.value)||0;
+    save(); drawTeam(); if(RUN) compute(RUN.rows);
+  });
+}
+document.getElementById("addRate").onclick=()=>{
+  let n="New video type",k=2; while(C.rates.some(r=>r.cat===n)) n="New video type "+(k++);
+  C.rates.push({cat:n,len:10,r:[5,5.5,5.75,6]});
+  save(); drawRates(); drawEff(); drawMap();
+};
+document.getElementById("mUp").onclick=()=>{ C.mode="uplift"; save(); drawRates(); };
+document.getElementById("mDir").onclick=()=>{ C.mode="direct"; save(); drawRates(); };
+function drawEff(){
+  const tb=document.querySelector("#effTbl tbody"); tb.innerHTML="";
+  C.rates.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML='<td>'+esc(r.cat)+' \u00b7 '+r.len+' min</td>'+
+      SLABS.map(s=>'<td class="r num">'+round(rateFor(r.cat,s)*r.len/C.ppd,1)+'</td>').join("");
+    tb.appendChild(tr);
+  });
+}
+document.getElementById("ppd").onchange=e=>{C.ppd=parseFloat(e.target.value)||30;save();drawEff();if(RUN)compute(RUN.rows);};
+document.getElementById("rate").onchange=e=>{C.rate=parseFloat(e.target.value)||0;save();if(RUN)compute(RUN.rows);};
+
+/* ---------- team ---------- */
+function drawTeam(){
+  const tb=document.querySelector("#teamTbl tbody"); tb.innerHTML="";
+  C.team.forEach((e,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML='<td><input data-k="name" data-i="'+i+'" value="'+esc(e.name)+'"></td>'+
+      '<td><select data-k="slab" data-i="'+i+'">'+SLABS.map(s=>'<option'+(s===e.slab?" selected":"")+'>'+s+'</option>').join("")+'</select></td>'+
+      '<td><select data-k="pattern" data-i="'+i+'">'+C.patterns.map(p=>'<option'+(p.name===e.pattern?" selected":"")+'>'+esc(p.name)+'</option>').join("")+'</select></td>'+
+      '<td><input class="n" type="number" step="0.5" data-k="days" data-i="'+i+'" value="'+daysOf(e)+'"></td>'+
+      '<td class="r num">'+targetOf(e)+'</td>'+
+      '<td><button class="x" data-del="'+i+'" aria-label="Remove editor">\u00d7</button></td>';
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("input,select").forEach(el=>el.onchange=()=>{
+    const e=C.team[+el.dataset.i],k=el.dataset.k;
+    if(k==="days"){ const p=pattern(e.pattern); const v=parseFloat(el.value);
+      e.days=(isNaN(v)||Math.abs(v-p.days)<0.01)?null:v; }
+    else e[k]=el.value;
+    save(); drawTeam(); if(RUN) compute(RUN.rows);
+  });
+  tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    C.team.splice(+b.dataset.del,1); save(); drawTeam(); if(RUN) compute(RUN.rows);
+  });
+  document.getElementById("teamCount").textContent=C.team.length+" editors";
+}
+document.getElementById("addEd").onclick=()=>{
+  C.team.push({name:"New editor",slab:"D",pattern:C.patterns[0].name,days:null,alias:[]});
+  save(); drawTeam();
+};
+document.getElementById("teamCsv").onclick=()=>{
+  const aoa=[["Editor","Slab","Experience","Work pattern","Days available","Target points"]];
+  C.team.forEach(e=>aoa.push([e.name,e.slab,EXP[e.slab],e.pattern,daysOf(e),targetOf(e)]));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),"Team");
+  XLSX.writeFile(wb,"HOET_Incentive_team_list.xlsx");
+};
+
+/* ---------- type map ---------- */
+function drawMap(){
+  const tb=document.querySelector("#mapTbl tbody"); tb.innerHTML="";
+  C.map.forEach((m,i)=>{
+    const tr=document.createElement("tr");
+    const pm=rateFor(m[1],"A");
+    tr.innerHTML='<td><input data-mk="0" data-i="'+i+'" value="'+esc(m[0])+'"></td>'+
+      '<td><select data-mk="1" data-i="'+i+'">'+cats().map(c=>'<option'+(c===m[1]?" selected":"")+'>'+esc(c)+'</option>').join("")+'</select></td>'+
+      '<td class="r num">'+(m[1]===NOTPAY?'<span class="pill n">0</span>':pm)+'</td>'+
+      '<td><button class="x" data-mdel="'+i+'" aria-label="Remove type">\u00d7</button></td>';
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("input,select").forEach(el=>el.onchange=()=>{
+    C.map[+el.dataset.i][+el.dataset.mk]=el.value; save(); drawMap(); if(RUN) compute(RUN.rows);
+  });
+  tb.querySelectorAll("[data-mdel]").forEach(b=>b.onclick=()=>{
+    C.map.splice(+b.dataset.mdel,1); save(); drawMap(); if(RUN) compute(RUN.rows);
+  });
+  document.getElementById("mapCount").textContent=C.map.length+" types mapped";
+}
+document.getElementById("addMap").onclick=()=>{ C.map.push(["",C.rates[0]?C.rates[0].cat:NOTPAY]); save(); drawMap(); };
+
+/* ---------- import ---------- */
+const drop=document.getElementById("drop"),fileIn=document.getElementById("file");
+const ov=document.getElementById("ov");
+drop.onclick=()=>fileIn.click();
+drop.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();fileIn.click();}};
+fileIn.onchange=e=>{ if(e.target.files[0]) read(e.target.files[0]); e.target.value=""; };
+
+let dragDepth=0;
+const hasFiles=e=>e.dataTransfer&&[...(e.dataTransfer.types||[])].includes("Files");
+window.addEventListener("dragenter",e=>{ if(!hasFiles(e))return; e.preventDefault(); dragDepth++; ov.classList.add("on"); });
+window.addEventListener("dragover",e=>{ if(!hasFiles(e))return; e.preventDefault(); e.dataTransfer.dropEffect="copy"; });
+window.addEventListener("dragleave",e=>{ if(!hasFiles(e))return; dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) ov.classList.remove("on"); });
+window.addEventListener("drop",e=>{
+  e.preventDefault(); dragDepth=0; ov.classList.remove("on");
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) read(f);
+});
+
+const NAME_H=["assignee","editor","member","name","owner"];
+const TYPE_H=["type","project type","video type","category"];
+const SEC_H =["runtime in period (sec)","duration (sec)","runtime (sec)","seconds"];
+const MIN_H =["minutes","runtime (min)","duration (min)"];
+function pick(hdrs,cands){
+  const low=hdrs.map(h=>String(h||"").trim().toLowerCase());
+  for(const c of cands){ const i=low.indexOf(c); if(i>=0) return i; }
+  for(const c of cands){ const i=low.findIndex(h=>h.includes(c)); if(i>=0) return i; }
+  return -1;
+}
+function read(f){
+  const fr=new FileReader();
+  fr.onload=ev=>{
+    let wb;
+    try{ wb=XLSX.read(new Uint8Array(ev.target.result),{type:"array"}); }
+    catch(err){ show("runOut",'<div class="note bad">That file could not be read. Export it again as .xlsx or .csv and retry.</div>'); return; }
+    let best=null;
+    for(const sn of wb.SheetNames){
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+      if(!aoa.length) continue;
+      const h=aoa[0]||[];
+      const ni=pick(h,NAME_H), ti=pick(h,TYPE_H), si=pick(h,SEC_H), mi=pick(h,MIN_H);
+      if(ni>=0&&(si>=0||mi>=0)){ const sc=(ti>=0?2:0)+aoa.length/1000;
+        if(!best||sc>best.sc) best={sn,aoa,ni,ti,si,mi,sc}; }
+    }
+    if(!best){ show("runOut",'<div class="note bad">No sheet in that file has an editor column and a duration column. Check the export includes assignee and runtime.</div>'); return; }
+    const rows=[];
+    for(let i=1;i<best.aoa.length;i++){
+      const r=best.aoa[i]; if(!r) continue;
+      const nm=r[best.ni]; if(!nm||!String(nm).trim()) continue;
+      let mins=0;
+      if(best.si>=0&&r[best.si]!=null) mins=(parseFloat(r[best.si])||0)/60;
+      else if(best.mi>=0&&r[best.mi]!=null) mins=parseFloat(r[best.mi])||0;
+      rows.push({raw:String(nm).trim(),type:best.ti>=0?r[best.ti]:null,mins});
+    }
+    if(!rows.length){ show("runOut",'<div class="note bad">That sheet has headers but no data rows.</div>'); return; }
+    RUN={rows,sheet:best.sn,file:f.name};
+    compute(rows);
+    goTab("results");
+  };
+  fr.readAsArrayBuffer(f);
+}
+function show(id,html){ document.getElementById(id).innerHTML=html; }
+
+/* ---------- compute ---------- */
+function compute(rows){
+  const per=new Map(), unknownTypes=new Map(), unmatched=new Map();
+  for(const r of rows){
+    const m=matchEditor(r.raw);
+    if(!m.e||m.score<0.72||(C.ignore||[]).some(x=>x.toLowerCase()===r.raw.toLowerCase())){
+      if((C.ignore||[]).some(x=>x.toLowerCase()===r.raw.toLowerCase())) continue;
+      const u=unmatched.get(r.raw)||{mins:0,best:m.e?m.e.name:null,score:m.score};
+      u.mins+=r.mins; unmatched.set(r.raw,u); continue;
+    }
+    const key=m.e.name;
+    if(!per.has(key)) per.set(key,{mins:0,pts:0,byCat:{},untyped:0,notPay:0});
+    const rec=per.get(key);
+    rec.mins+=r.mins;
+    const raw=r.type&&String(r.type).trim()?String(r.type).trim():null;
+    const cat=catOf(r.type);
+    if(cat===null){
+      rec.untyped+=r.mins;
+      if(raw) unknownTypes.set(raw,(unknownTypes.get(raw)||0)+r.mins);
+      continue;
+    }
+    if(cat===NOTPAY){ rec.notPay+=r.mins; rec.byCat[cat]=(rec.byCat[cat]||0)+r.mins; continue; }
+    rec.pts+=r.mins*rateFor(cat,m.e.slab);
+    rec.byCat[cat]=(rec.byCat[cat]||0)+r.mins;
+  }
+  const out=C.team.map(e=>{
+    const rec=per.get(e.name)||{mins:0,pts:0,byCat:{},untyped:0,notPay:0};
+    const target=targetOf(e), pts=round(rec.pts,1);
+    const surplus=Math.max(0,round(pts-target,1));
+    let status="none";
+    if(rec.mins<0.05) status="none";
+    else if(rec.untyped>0.05&&pts<0.05) status="blocked";
+    else if(surplus>0) status="over";
+    else status="under";
+    return {name:e.name,slab:e.slab,exp:EXP[e.slab],pattern:e.pattern,days:daysOf(e),
+            mins:round(rec.mins,1),untyped:round(rec.untyped,1),notPay:round(rec.notPay,1),
+            byCat:rec.byCat,pts,target,surplus,incentive:Math.round(surplus*C.rate),
+            pctv:target?pts/target:0,status};
+  }).sort((a,b)=>b.pts-a.pts||b.mins-a.mins);
+  RUN.out=out; RUN.unknownTypes=unknownTypes; RUN.unmatched=unmatched;
+  RUN.untypedMins=out.reduce((a,r)=>a+r.untyped,0);
+  drawResults();
+}
+
+/* ---------- results ---------- */
+const STATUS={
+  over:['t','Above target'], under:['a','Below target'],
+  blocked:['r','Work not priced'], none:['n','No work recorded']
+};
+function drawResults(){
+  const o=RUN.out;
+  const tot=o.reduce((a,r)=>({m:a.m+r.mins,p:a.p+r.pts,t:a.t+r.target,s:a.s+r.surplus,i:a.i+r.incentive}),
+                     {m:0,p:0,t:0,s:0,i:0});
+  const active=o.filter(r=>r.mins>0.05), cleared=o.filter(r=>r.surplus>0);
+  const blocked=o.filter(r=>r.status==="blocked"), partial=o.filter(r=>r.status!=="blocked"&&r.untyped>0.05);
+  let h="";
+
+  /* ---- action bar ---- */
+  h+='<div class="actbar"><div><div class="t">'+esc(RUN.file||"Report")+'</div>'+
+     '<div class="m">'+active.length+' of '+o.length+' editors delivered work \u00b7 '+
+     Math.round(tot.p).toLocaleString("en-IN")+' points \u00b7 '+inr(tot.i)+' payable</div></div>'+
+     '<button class="btn g" id="expTop" style="margin-left:auto">Download spreadsheet</button>'+
+     '<button class="btn o" id="again">Run another report</button></div>';
+
+  /* ---- one consolidated problem panel ---- */
+  const um=[...RUN.unmatched.entries()].sort((a,b)=>b[1].mins-a[1].mins);
+  const ut=[...RUN.unknownTypes.entries()].sort((a,b)=>b[1]-a[1]);
+  const untypedTotal=round(RUN.untypedMins,1);
+  if(um.length||ut.length||untypedTotal>0.05){
+    h+='<div class="card" style="border-color:#F0CFCA"><h3 style="color:var(--red)">Fix these before using the numbers</h3>';
+
+    if(um.length){
+      h+='<p class="sub" style="margin:0 0 10px"><strong>'+um.length+' name'+(um.length>1?"s":"")+
+         ' in the report did not match your team list.</strong> That work is not counted at all. '+
+         'Link each one to the right editor, or ignore it if the person is not an editor.</p>'+
+         '<div class="scroll"><table style="max-width:900px"><thead><tr><th>Name in report</th><th class="r" style="width:90px">Minutes</th>'+
+         '<th style="width:290px">This is</th><th style="width:150px"></th></tr></thead><tbody>'+
+         um.map(([raw,u],i)=>'<tr><td>'+esc(raw)+'</td><td class="r num">'+round(u.mins,1)+'</td>'+
+           '<td><select id="mt'+i+'">'+C.team.map(e=>'<option'+(u.best===e.name?" selected":"")+'>'+esc(e.name)+'</option>').join("")+
+           '</select></td><td><div class="row" style="gap:6px;flex-wrap:nowrap">'+
+           '<button class="btn g" data-link="'+i+'" data-raw="'+esc(raw)+'">Link</button>'+
+           '<button class="btn o" data-ign="'+esc(raw)+'">Ignore</button></div></td></tr>').join("")+
+         '</tbody></table></div>';
+    }
+
+    if(ut.length){
+      h+='<p class="sub" style="margin:16px 0 10px"><strong>'+ut.length+' video type'+(ut.length>1?"s are":" is")+
+         ' not in your mapping.</strong> Those minutes score nothing until you map them.</p>'+
+         '<div class="scroll"><table style="max-width:820px"><thead><tr><th>Type in report</th><th class="r" style="width:90px">Minutes</th>'+
+         '<th style="width:300px">Map to</th><th style="width:100px"></th></tr></thead><tbody>'+
+         ut.map(([t,m],i)=>'<tr><td>'+esc(t)+'</td><td class="r num">'+round(m,1)+'</td>'+
+           '<td><select id="mc'+i+'">'+cats().map(c=>'<option>'+esc(c)+'</option>').join("")+'</select></td>'+
+           '<td><button class="btn g" data-map="'+i+'" data-type="'+esc(t)+'">Add</button></td></tr>').join("")+
+         '</tbody></table></div>';
+    }
+
+    const affected=o.filter(r=>r.untyped>0.05).sort((a,b)=>b.untyped-a.untyped);
+    if(affected.length){
+      h+='<p class="sub" style="margin:16px 0 10px"><strong>'+untypedTotal+' minutes were delivered with no video type recorded.</strong> '+
+         'Those minutes cannot be priced, so the editors below are scored lower than the work they actually did. '+
+         (blocked.length?'<span style="color:var(--red)">'+blocked.length+' of them score zero for this reason alone.</span>':'')+'</p>'+
+         '<div class="scroll"><table style="max-width:760px"><thead><tr><th style="width:34%">Editor</th>'+
+         '<th class="r" style="width:19%">Minutes with no type</th>'+
+         '<th class="r" style="width:16%">Minutes priced</th><th class="r" style="width:13%">Points</th>'+
+         '<th style="width:18%">Effect</th></tr></thead><tbody>'+
+         affected.map(r=>'<tr><td>'+esc(r.name)+'</td><td class="r num">'+r.untyped+'</td>'+
+           '<td class="r num">'+round(r.mins-r.untyped,1)+'</td><td class="r num">'+Math.round(r.pts)+'</td>'+
+           '<td>'+(r.status==="blocked"?'<span class="pill r">Scores zero</span>':'<span class="pill a">Under-counted</span>')+
+           '</td></tr>').join("")+'</tbody></table></div>';
+    }
+    h+='</div>';
+  } else {
+    h+='<div class="note ok"><strong>All work in this report was matched and priced.</strong> No data gaps found.</div>';
+  }
+
+  /* ---- KPIs ---- */
+  h+='<div class="kpis">'+
+    kpi(round(tot.m,0).toLocaleString("en-IN"),"Minutes delivered")+
+    kpi(Math.round(tot.p).toLocaleString("en-IN"),"Points earned")+
+    kpi(Math.round(tot.t).toLocaleString("en-IN"),"Total target, "+o.length+" editors")+
+    kpi(cleared.length+" of "+active.length,"Cleared target, of those who delivered",cleared.length?"hi":"warn")+
+    kpi(inr(tot.i),"Incentive payable","hi")+'</div>';
+
+  /* ---- per editor ---- */
+  h+='<div class="card"><div class="row" style="margin-bottom:6px">'+
+     '<h3 style="margin:0">Every editor</h3>'+
+     '<span style="color:var(--muted);font-size:12.5px">Click a row to see the breakdown by video type</span>'+
+     '<button class="btn o" id="expX" style="margin-left:auto">Download spreadsheet</button></div>'+
+     '<div class="scroll"><table><thead><tr><th>Editor</th><th>Slab</th><th class="r">Minutes</th>'+
+     '<th class="r">Points</th><th class="r">Target</th><th style="width:80px">Progress</th>'+
+     '<th class="r">Above target</th><th class="r">Incentive</th><th>Status</th></tr></thead><tbody>';
+
+  o.forEach((r,i)=>{
+    const pc=Math.min(100,Math.round(r.pctv*100));
+    const st=STATUS[r.status];
+    h+='<tr class="clk" data-row="'+i+'"><td><span class="tw">\u25B8</span> '+esc(r.name)+'</td>'+
+      '<td>'+r.slab+'</td><td class="r num">'+r.mins+'</td>'+
+      '<td class="r num"><strong>'+Math.round(r.pts).toLocaleString("en-IN")+'</strong></td>'+
+      '<td class="r num">'+r.target+'</td>'+
+      '<td><div class="bar"><i class="'+(r.surplus>0?"":"under")+'" style="width:'+pc+'%"></i></div></td>'+
+      '<td class="r num">'+(r.surplus>0?Math.round(r.surplus):"\u2014")+'</td>'+
+      '<td class="r num">'+(r.incentive>0?'<strong style="color:var(--teal)">'+inr(r.incentive)+'</strong>':"\u2014")+'</td>'+
+      '<td><span class="pill '+st[0]+'">'+st[1]+'</span></td></tr>';
+    const cats=Object.keys(r.byCat);
+    let d='';
+    if(cats.length||r.untyped>0.05){
+      d='<table style="width:auto;min-width:460px"><thead><tr><th>Video type</th><th class="r">Minutes</th>'+
+        '<th class="r">Rate</th><th class="r">Points</th></tr></thead><tbody>'+
+        cats.map(c=>{
+          const mn=round(r.byCat[c],1), rt=c===NOTPAY?0:rateFor(c,r.slab);
+          return '<tr><td>'+esc(c)+'</td><td class="r num">'+mn+'</td>'+
+                 '<td class="r num">'+(rt?rt:"\u2014")+'</td><td class="r num">'+(rt?Math.round(mn*rt):0)+'</td></tr>';
+        }).join("")+
+        (r.untyped>0.05?'<tr><td style="color:var(--red)">No video type recorded</td><td class="r num" style="color:var(--red)">'+
+          r.untyped+'</td><td class="r">\u2014</td><td class="r num">0</td></tr>':'')+
+        '</tbody></table>';
+    } else d='<span style="color:var(--muted)">No work recorded against this editor in the report.</span>';
+    h+='<tr class="det" id="d'+i+'"><td colspan="9"><div class="detbox">'+d+'</div></td></tr>';
+  });
+
+  h+='</tbody><tfoot><tr><td colspan="2">Total</td><td class="r num">'+round(tot.m,0)+'</td>'+
+     '<td class="r num">'+Math.round(tot.p).toLocaleString("en-IN")+'</td>'+
+     '<td class="r num">'+Math.round(tot.t).toLocaleString("en-IN")+'</td><td></td>'+
+     '<td class="r num">'+Math.round(tot.s)+'</td><td class="r num">'+inr(tot.i)+'</td><td></td></tr>'+
+     '</tfoot></table></div></div>';
+
+  show("resOut",h);
+
+  document.querySelectorAll("#resOut tr.clk").forEach(tr=>tr.onclick=()=>{
+    const d=document.getElementById("d"+tr.dataset.row);
+    const open=d.classList.toggle("on");
+    tr.querySelector(".tw").textContent=open?"\u25BE":"\u25B8";
+  });
+  document.querySelectorAll("[data-link]").forEach(b=>b.onclick=()=>{
+    const raw=b.dataset.raw, nm=document.getElementById("mt"+b.dataset.link).value;
+    const e=C.team.find(x=>x.name===nm);
+    if(e){ e.alias=e.alias||[]; if(!e.alias.includes(raw)) e.alias.push(raw); save(); compute(RUN.rows); }
+  });
+  document.querySelectorAll("[data-ign]").forEach(b=>b.onclick=()=>{
+    C.ignore=C.ignore||[]; if(!C.ignore.includes(b.dataset.ign)) C.ignore.push(b.dataset.ign);
+    save(); compute(RUN.rows);
+  });
+  document.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{
+    C.map.push([b.dataset.type,document.getElementById("mc"+b.dataset.map).value]);
+    save(); drawMap(); compute(RUN.rows);
+  });
+  ["expX","expTop"].forEach(id=>{ const b=document.getElementById(id); if(b) b.onclick=exportXlsx; });
+  const ag=document.getElementById("again"); if(ag) ag.onclick=()=>{ goTab("run"); fileIn.click(); };
+}
+function kpi(b,s,cls){ return '<div class="kpi '+(cls||"")+'"><b>'+b+'</b><span>'+s+'</span></div>'; }
+
+function exportXlsx(){
+  const mo=document.getElementById("month").value||"Month";
+  const aoa=[["Editor","Slab","Experience","Work pattern","Days available","Minutes delivered",
+              "Minutes with no type","Minutes not payable","Points earned","Target points",
+              "Points above target","Incentive (INR)","Status"]];
+  RUN.out.forEach(r=>aoa.push([r.name,r.slab,r.exp,r.pattern,r.days,r.mins,r.untyped,r.notPay,
+                               round(r.pts,1),r.target,r.surplus,r.incentive,STATUS[r.status][1]]));
+  const t=RUN.out.reduce((a,r)=>({m:a.m+r.mins,p:a.p+r.pts,t:a.t+r.target,s:a.s+r.surplus,i:a.i+r.incentive}),{m:0,p:0,t:0,s:0,i:0});
+  aoa.push([]); aoa.push(["TOTAL","","","","",round(t.m,1),"","",round(t.p,1),Math.round(t.t),round(t.s,1),Math.round(t.i),""]);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:26},{wch:6},{wch:11},{wch:15},{wch:8},{wch:10},{wch:11},{wch:11},{wch:10},{wch:9},{wch:10},{wch:13},{wch:17}];
+  XLSX.utils.book_append_sheet(wb,ws,"Incentive");
+
+  const rc=[["Video type","Deliverable length (min)","A","B","C","D"]];
+  C.rates.forEach(r=>rc.push([r.cat,r.len,r.r[0],r.r[1],r.r[2],r.r[3]]));
+  rc.push([]); rc.push(["Points per working day",C.ppd]); rc.push(["Incentive per point above target",C.rate]);
+  C.patterns.forEach(p=>rc.push([p.name+" target",p.target,"standard days",p.days]));
+  const ws2=XLSX.utils.aoa_to_sheet(rc); ws2["!cols"]=[{wch:34},{wch:20},{wch:9},{wch:9},{wch:9},{wch:9}];
+  XLSX.utils.book_append_sheet(wb,ws2,"Rate card");
+
+  XLSX.writeFile(wb,"HOET_Incentive_"+mo.replace(/[^\w]+/g,"_")+".xlsx");
+}
+
+/* ---------- settings io ---------- */
+document.getElementById("saveCfg").onclick=()=>{
+  const b=new Blob([JSON.stringify(C,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(b);
+  a.download="HOET-Incentive-settings.json"; a.click(); URL.revokeObjectURL(a.href);
+};
+document.getElementById("loadCfgBtn").onclick=()=>document.getElementById("loadCfg").click();
+document.getElementById("loadCfg").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const fr=new FileReader();
+  fr.onload=ev=>{
+    try{ const j=JSON.parse(ev.target.result);
+      if(!j.rates||!j.team) throw 0;
+      C=migrate(j); save(); drawRates(); drawEff(); drawTeam(); drawMap();
+      if(RUN) compute(RUN.rows);
+    }catch(err){ alert("That file is not a valid settings file."); }
+  };
+  fr.readAsText(f);
+};
+
+/* ---------- start ---------- */
+C=load();
+drawRates(); drawEff(); drawTeam(); drawMap();
+</script>
+</body>
+</html>

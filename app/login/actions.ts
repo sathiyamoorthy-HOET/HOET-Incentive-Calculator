@@ -20,7 +20,7 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return {
       error:
         error.message === "Invalid login credentials"
-          ? "That email address and password do not match an account. Accounts are created by an administrator."
+          ? "That email address and password do not match an account. Only addresses on the access list can sign in, and accounts are created by an administrator."
           : error.message,
     };
   }

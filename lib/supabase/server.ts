@@ -1,12 +1,16 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { MISSING_ENV_MESSAGE, supabaseEnv } from "@/lib/env";
 
 export async function createClient() {
+  const env = supabaseEnv();
+  if (!env) throw new Error(MISSING_ENV_MESSAGE);
+
   const cookieStore = await cookies();
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.url,
+    env.key,
     {
       cookies: {
         getAll() {

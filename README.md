@@ -61,11 +61,23 @@ that was signed off even after the rate card changes.
 
 ## Accounts
 
-Sign-up is disabled. Create each account in the Supabase dashboard under
-**Authentication -> Users -> Add user**, with "Auto Confirm User" ticked, then
-send the person their password to change. Anyone signed in can read and edit the
-shared config and open any saved run; only the person who saved a run can delete
-it.
+Access is limited to the addresses in the `allowed_emails` table, enforced twice
+over so the dashboard's "allow signups" toggle is not the only thing standing
+between a stranger and the payroll data:
+
+- a trigger on `auth.users` refuses to create an account for an address that is
+  not listed, so an open signup form still cannot produce a usable account;
+- every row-level security policy requires the caller to be on the list, so an
+  account created out of band sees nothing at all.
+
+To give someone access, add their address to `allowed_emails` first, then create
+the account under **Authentication -> Users -> Add user** with "Auto Confirm
+User" ticked. Doing it in the other order fails, by design. The last address on
+the list cannot be deleted, so the project cannot be locked out of itself.
+
+Anyone on the list can read and edit the shared config and open any saved run;
+only the person who saved a run can delete it. There is no self-serve password
+reset: reset passwords from the Supabase dashboard.
 
 ## Deployment
 

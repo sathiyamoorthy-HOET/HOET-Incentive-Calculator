@@ -40,6 +40,11 @@ npm install
 npm run dev
 ```
 
+`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` carry no `NEXT_PUBLIC_` prefix on
+purpose: every Supabase call happens on the server, in the proxy and in Server
+Actions, so the browser never needs them. The legacy `NEXT_PUBLIC_` names are
+still read as a fallback.
+
 ## Database
 
 The schema and seed data are one migration in `supabase/migrations`. Apply it to
@@ -81,6 +86,12 @@ reset: reset passwords from the Supabase dashboard.
 
 ## Deployment
 
-The app deploys to Vercel with `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY` set as environment variables. Both are safe to
-expose to the browser; access is enforced by row-level security in Postgres.
+The app deploys to Vercel with `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`
+set as environment variables, typed as Config rather than Secret. Neither is
+inlined into the client bundle, which the build can be checked against:
+
+```bash
+grep -rl "sb_publishable_" .next/static | wc -l   # expect 0
+```
+
+Access is enforced by row-level security in Postgres, not by key secrecy.

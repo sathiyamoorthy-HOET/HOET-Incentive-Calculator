@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 810 810">
   <style>
-    .plate{fill:#f7f7f7}
-    .glyph{fill:#080808}
+    /* The plate contrasts with the browser it sits in, rather than matching
+       it: a dark tile on a dark tab bar disappears. */
+    .plate{fill:#080808}
+    .glyph{fill:#f7f7f7}
     @media (prefers-color-scheme: dark) {
-      .plate{fill:#080808}
-      .glyph{fill:#f7f7f7}
+      .plate{fill:#f7f7f7}
+      .glyph{fill:#080808}
     }
   </style>
   <rect class="plate" width="810" height="810"/>

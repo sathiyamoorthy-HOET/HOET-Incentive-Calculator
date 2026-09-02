@@ -20,6 +20,10 @@ export type Editor = {
   pattern: string;
   days: number | null;
   alias: string[];
+  /** Reviews work rather than editing it, so no editing is expected of them. */
+  reviewer?: boolean;
+  /** Set to give this person a target of their own instead of the pattern's. */
+  target?: number | null;
 };
 
 /** A source video type paired with the payable category it maps to. */
@@ -34,6 +38,8 @@ export type Config = {
    * video revised more times than the list is long is charged the last entry.
    */
   revPen: number[];
+  /** Points a minute for reviewing, whatever the video type. */
+  reviewRate: number;
   patterns: Pattern[];
   rates: RateRow[];
   map: TypeMap[];
@@ -51,6 +57,10 @@ export type SourceRow = {
   mins: number;
   /** Rounds of revision this video went through. Version 1 means none. */
   rev?: number;
+  /** Who reviews this video: the manager of the project it belongs to. */
+  reviewer?: string | null;
+  /** Whether a review has actually happened, from the deliverable's status. */
+  reviewed?: boolean;
 };
 
 /** What the parser made of the file, so the Results page can explain itself. */
@@ -70,6 +80,13 @@ export type ParsedSource = {
   versionColumn: string | null;
   /** Deliverables that could not be tied back to a project, so were skipped. */
   orphans: number;
+  /** The status column reviews were read from, or null when there was none. */
+  statusColumn: string | null;
+  /**
+   * Projects whose deliverables were approved by more than one person. Review
+   * points go to the manager, so these are the ones where that is a guess.
+   */
+  splitApprovals: string[];
 };
 
 /** The report currently on screen, either just uploaded or opened from History. */
@@ -100,6 +117,12 @@ export type EditorResult = {
   /** Videos that took at least one revision, and the rounds they took. */
   revised: number;
   rounds: number;
+  /** Reviewing: minutes reviewed, the points they earned, and videos seen. */
+  reviewMins: number;
+  reviewPts: number;
+  reviewed: number;
+  /** True when this person is on the team list as a reviewer. */
+  isReviewer: boolean;
   /** Points taken off for revisions, before target and incentive. */
   deducted: number;
   pts: number;

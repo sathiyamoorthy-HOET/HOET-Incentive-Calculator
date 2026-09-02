@@ -44,7 +44,9 @@ export default function TeamTab({
       <h2>Team</h2>
       <p className="sub">
         Slab sets the points rate. Work pattern sets the monthly target. Reduce days available for
-        approved leave, joiners and leavers. Changes here are shared with everyone.
+        approved leave, joiners and leavers. Mark someone a reviewer when they review rather than
+        edit, and give them a target of their own — an editing target is not one they can clear.
+        Changes here are shared with everyone.
       </p>
 
       <EditCard
@@ -87,6 +89,9 @@ export default function TeamTab({
                   <th>Editor</th>
                   <th style={{ width: 120 }}>Slab</th>
                   <th style={{ width: 150 }}>Work pattern</th>
+                  <th style={{ width: 90 }} title="Reviews work rather than editing it">
+                    Reviews
+                  </th>
                   <th className="r" style={{ width: 110 }}>Days available</th>
                   <th className="r" style={{ width: 100 }}>Target</th>
                   {editing && <th style={{ width: 40 }} />}
@@ -147,6 +152,23 @@ export default function TeamTab({
                         e.pattern || <span className="muted">—</span>
                       )}
                     </td>
+                    <td>
+                      {editing ? (
+                        <input
+                          type="checkbox"
+                          checked={!!e.reviewer}
+                          style={{ width: "auto" }}
+                          aria-label={"Reviews rather than edits: " + e.name}
+                          onChange={(ev) =>
+                            update((d) => { d.team[i].reviewer = ev.target.checked; })
+                          }
+                        />
+                      ) : e.reviewer ? (
+                        <span className="pill n">Reviewer</span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td className={editing ? "" : "r num"}>
                       {editing ? (
                         <NumInput
@@ -163,7 +185,33 @@ export default function TeamTab({
                         daysOf(config, e)
                       )}
                     </td>
-                    <td className="r num">{targetOf(config, e)}</td>
+                    <td className={editing ? "" : "r num"}>
+                      {editing ? (
+                        <NumInput
+                          step="10"
+                          min="0"
+                          value={targetOf(config, e)}
+                          onCommit={(v) =>
+                            update((d) => {
+                              /* Typing the pattern's own number back means
+                                 "follow the pattern", not "pin it here". */
+                              const p = patternOf(d, d.team[i].pattern);
+                              const fromPattern = p && p.days
+                                ? Math.round((p.target * daysOf(d, d.team[i])) / p.days)
+                                : 0;
+                              d.team[i].target = Math.abs(v - fromPattern) < 0.5 ? null : v;
+                            })
+                          }
+                        />
+                      ) : (
+                        <>
+                          {targetOf(config, e)}
+                          {e.target != null && (
+                            <span className="muted" style={{ fontSize: 11 }}> · set</span>
+                          )}
+                        </>
+                      )}
+                    </td>
                     {editing && (
                       <td>
                         <button

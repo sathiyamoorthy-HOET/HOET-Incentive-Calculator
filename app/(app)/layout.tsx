@@ -38,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   /* The revision ladder arrives only once its migration has been applied. */
   const shared = config as Config;
   shared.revPen = shared.revPen ?? [];
+  shared.reviewRate = shared.reviewRate ?? 0;
 
   return (
     <AppShell initialConfig={shared} userLabel={label}>

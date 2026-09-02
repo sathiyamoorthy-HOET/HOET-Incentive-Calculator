@@ -63,6 +63,7 @@ export default function ResultsTab({
   /* Two ways a report can be short of what the rate card now prices on. */
   const noVersions = !!run.source && run.source.mode === "projects";
   const orphans = run.source?.orphans ?? 0;
+  const splitApprovals = run.source?.splitApprovals ?? [];
   const hasProblems =
     result.unmatched.length > 0 || result.unknownTypes.length > 0 || untypedTotal > 0.05;
 
@@ -121,6 +122,18 @@ export default function ResultsTab({
           {run.source?.sheet ? ' "' + run.source.sheet + '"' : " the sheet"}, which carries no
           version column, so every video is priced as a first-pass approval. A report with a
           deliverables sheet prices each video on its own and charges the ladder on the rate card.
+        </div>
+      )}
+
+      {splitApprovals.length > 0 && (
+        <div className="note">
+          <strong>
+            {splitApprovals.length} project{splitApprovals.length > 1 ? "s" : ""} had deliverables
+            signed off by more than one person.
+          </strong>{" "}
+          Review points went to each project&apos;s manager, so for{" "}
+          {splitApprovals.length > 1 ? "these" : "this one"} that is an assumption rather than a
+          record: <span className="num">{splitApprovals.join(", ")}</span>.
         </div>
       )}
 
@@ -374,6 +387,7 @@ export default function ResultsTab({
           s="Cleared target, of those who delivered"
           cls={cleared.length ? "hi" : "warn"}
         />
+        {t.rp > 0.05 && <Kpi b={num(t.rp)} s={"Review points, " + round(t.rm, 0) + " min reviewed"} />}
         {t.d > 0.05 && <Kpi b={"−" + num(t.d)} s="Points off for revisions" cls="warn" />}
         <Kpi b={inr(t.i)} s="Incentive payable" cls="hi" />
       </div>
@@ -400,6 +414,9 @@ export default function ResultsTab({
                   Revisions
                 </th>
                 <th className="r">Deducted</th>
+                <th className="r" title="Videos reviewed for other editors, and the points earned">
+                  Reviewed
+                </th>
                 <th className="r">Points</th>
                 <th className="r">Target</th>
                 <th style={{ width: 80 }}>Progress</th>
@@ -419,6 +436,9 @@ export default function ResultsTab({
                   <tr key={r.name} className="clk" onClick={() => toggle(i)}>
                     <td>
                       <span className="tw">{isOpen ? "▾" : "▸"}</span> {r.name}
+                      {r.isReviewer && (
+                        <span className="muted" style={{ fontSize: 11.5 }}> · reviewer</span>
+                      )}
                     </td>
                     <td>{r.slab}</td>
                     <td className="r num">{r.mins}</td>
@@ -438,6 +458,18 @@ export default function ResultsTab({
                     </td>
                     <td className="r num" style={r.deducted > 0.05 ? { color: "var(--rose)" } : undefined}>
                       {r.deducted > 0.05 ? "−" + num(r.deducted) : "—"}
+                    </td>
+                    <td className="r num">
+                      {r.reviewed ? (
+                        <>
+                          {r.reviewed}
+                          <span className="muted" style={{ fontSize: 11.5 }}>
+                            {" / " + num(r.reviewPts) + " pts"}
+                          </span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="r num"><strong>{num(r.pts)}</strong></td>
                     <td className="r num">{r.target}</td>
@@ -463,7 +495,7 @@ export default function ResultsTab({
                 if (isOpen) {
                   rows.push(
                     <tr key={r.name + "-det"} className="det on">
-                      <td colSpan={11}>
+                      <td colSpan={12}>
                         <div className="detbox">
                           {keys.length || r.untyped > 0.05 ? (
                             <table style={{ width: "auto", minWidth: 460 }}>
@@ -497,6 +529,20 @@ export default function ResultsTab({
                                     </tr>
                                   );
                                 })}
+                                {r.reviewPts > 0.05 && (
+                                  <tr>
+                                    <td>
+                                      Reviewed for others
+                                      <span className="muted" style={{ fontSize: 11.5 }}>
+                                        {" · " + r.reviewed + " video" + (r.reviewed === 1 ? "" : "s")}
+                                      </span>
+                                    </td>
+                                    <td className="r num">{r.reviewMins}</td>
+                                    <td className="r num">{config.reviewRate ?? 0}</td>
+                                    <td className="r">—</td>
+                                    <td className="r num">{num(r.reviewPts)}</td>
+                                  </tr>
+                                )}
                                 {r.untyped > 0.05 && (
                                   <tr>
                                     <td style={{ color: "var(--red)" }}>No video type recorded</td>
@@ -528,6 +574,7 @@ export default function ResultsTab({
                 <td className="r num">{round(t.m, 0)}</td>
                 <td className="r num">{o.reduce((a, r) => a + r.revised, 0) || "—"}</td>
                 <td className="r num">{t.d > 0.05 ? "−" + num(t.d) : "—"}</td>
+                <td className="r num">{t.rp > 0.05 ? num(t.rp) : "—"}</td>
                 <td className="r num">{num(t.p)}</td>
                 <td className="r num">{num(t.t)}</td>
                 <td />

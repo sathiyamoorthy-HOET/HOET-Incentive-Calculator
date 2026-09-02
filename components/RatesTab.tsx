@@ -247,7 +247,10 @@ export default function RatesTab({
       </EditCard>
 
       <div className="g2">
-        <EditCard title="Target and payout">
+        <EditCard
+          title="Target and payout"
+          hint="Reviewing is paid by duration at one rate, whatever the video type. The reviewer is the manager of the project, and reviewing your own edit earns nothing."
+        >
           {(editing) => (
             <div className="row" style={{ gap: 26, alignItems: "flex-end" }}>
               <div>
@@ -261,6 +264,20 @@ export default function RatesTab({
                   />
                 ) : (
                   <div className="val">{config.ppd}</div>
+                )}
+              </div>
+              <div>
+                <label className="fld" htmlFor="rev">Points per minute for reviewing</label>
+                {editing ? (
+                  <NumInput
+                    className="fld-in"
+                    value={config.reviewRate ?? 0}
+                    step="0.5"
+                    min="0"
+                    onCommit={(v) => update((d) => { d.reviewRate = Math.max(0, v); })}
+                  />
+                ) : (
+                  <div className="val">{config.reviewRate ?? 0}</div>
                 )}
               </div>
               <div>

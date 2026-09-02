@@ -44,6 +44,7 @@ export function daysOf(c: Config, e: Editor): number {
 }
 
 export function targetOf(c: Config, e: Editor): number {
+  if (e.target != null) return round(e.target, 0);
   const p = patternOf(c, e.pattern);
   if (!p || !p.days) return 0;
   return round((p.target * daysOf(c, e)) / p.days, 0);
@@ -143,17 +144,54 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     revised: number;
     rounds: number;
     deducted: number;
+    reviewMins: number;
+    reviewPts: number;
+    reviewed: number;
   };
   const per = new Map<string, Acc>();
   const unknownTypes = new Map<string, number>();
   const unmatched = new Map<string, { mins: number; best: string | null; score: number }>();
   const ignore = c.ignore || [];
 
+  const blank = (): Acc => ({
+    mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
+    revised: 0, rounds: 0, deducted: 0, reviewMins: 0, reviewPts: 0, reviewed: 0,
+  });
+  const accFor = (name: string): Acc => {
+    if (!per.has(name)) per.set(name, blank());
+    return per.get(name)!;
+  };
+
   for (const r of rows) {
     const isIgnored = ignore.some((x) => x.toLowerCase() === r.raw.toLowerCase());
     if (isIgnored) continue;
 
     const m = matchEditor(c, r.raw);
+
+    /* Reviewing is credited from the same row as the editing, because it is
+       the same video: the manager of its project reviews it, and only once
+       the status says a review has happened. Their own work does not count. */
+    if (r.reviewed && r.reviewer && (c.reviewRate || 0) > 0) {
+      const who = r.reviewer;
+      const skip = ignore.some((x) => x.toLowerCase() === who.toLowerCase());
+      if (!skip) {
+        const rv = matchEditor(c, who);
+        if (rv.e && rv.score >= MATCH_THRESHOLD) {
+          const own = !!m.e && m.score >= MATCH_THRESHOLD && m.e.name === rv.e.name;
+          if (!own) {
+            const acc = accFor(rv.e.name);
+            acc.reviewMins += r.mins;
+            acc.reviewPts += r.mins * c.reviewRate;
+            acc.reviewed += 1;
+          }
+        } else {
+          const u = unmatched.get(who) || { mins: 0, best: rv.e ? rv.e.name : null, score: rv.score };
+          u.mins += r.mins;
+          unmatched.set(who, u);
+        }
+      }
+    }
+
     if (!m.e || m.score < MATCH_THRESHOLD) {
       const u = unmatched.get(r.raw) || { mins: 0, best: m.e ? m.e.name : null, score: m.score };
       u.mins += r.mins;
@@ -161,13 +199,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       continue;
     }
 
-    const key = m.e.name;
-    if (!per.has(key))
-      per.set(key, {
-        mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
-        revised: 0, rounds: 0, deducted: 0,
-      });
-    const rec = per.get(key)!;
+    const rec = accFor(m.e.name);
     rec.mins += r.mins;
 
     const raw = r.type && String(r.type).trim() ? String(r.type).trim() : null;
@@ -205,12 +237,14 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         per.get(e.name) || {
           mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
           revised: 0, rounds: 0, deducted: 0,
+          reviewMins: 0, reviewPts: 0, reviewed: 0,
         };
       const target = targetOf(c, e);
-      const pts = round(rec.pts, 1);
+      const pts = round(rec.pts + rec.reviewPts, 1);
       const surplus = Math.max(0, round(pts - target, 1));
       let status: RunStatus = "none";
-      if (rec.mins < 0.05) status = "none";
+      if (rec.mins < 0.05 && rec.reviewMins < 0.05) status = "none";
+      else if (rec.mins < 0.05) status = surplus > 0 ? "over" : "under";
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
       else status = "under";
@@ -228,6 +262,10 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         revised: rec.revised,
         rounds: rec.rounds,
         deducted: round(rec.deducted, 1),
+        reviewMins: round(rec.reviewMins, 1),
+        reviewPts: round(rec.reviewPts, 1),
+        reviewed: rec.reviewed,
+        isReviewer: !!e.reviewer,
         pts,
         target,
         surplus,
@@ -255,7 +293,9 @@ export function totals(out: EditorResult[]) {
       s: a.s + r.surplus,
       i: a.i + r.incentive,
       d: a.d + r.deducted,
+      rm: a.rm + r.reviewMins,
+      rp: a.rp + r.reviewPts,
     }),
-    { m: 0, p: 0, t: 0, s: 0, i: 0, d: 0 }
+    { m: 0, p: 0, t: 0, s: 0, i: 0, d: 0, rm: 0, rp: 0 }
   );
 }

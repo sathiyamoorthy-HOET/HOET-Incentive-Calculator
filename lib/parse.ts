@@ -11,6 +11,19 @@ const MIN_H = ["minutes", "runtime (min)", "duration (min)"];
 const CODE_H = ["project code", "project id", "code"];
 const VER_H = ["version", "revision no", "revisions"];
 const PERIOD_H = ["uploaded in period", "upload in period"];
+const STATUS_H = ["status", "deliverable status"];
+const MGR_H = ["manager", "reviewer", "reviewed by"];
+
+/**
+ * A deliverable whose status says somebody has actually looked at it. Work
+ * still sitting in review, or merely uploaded, has not been reviewed yet and
+ * earns the reviewer nothing until it has.
+ */
+function isReviewed(status: string): boolean {
+  const t = status.trim().toLowerCase();
+  if (!t) return false;
+  return t.includes("approv") || t.includes("revision");
+}
 
 /** Finds a column by exact header first, then by substring. -1 when absent. */
 function pick(hdrs: unknown[], cands: string[]): number {
@@ -104,14 +117,14 @@ function bestDeliverables(sheets: Sheet[]): Sheet | null {
 
 /** The sheet that can name the editor behind a project code. */
 function projectLookup(sheets: Sheet[], exclude: string) {
-  let best: { s: Sheet; ci: number; ni: number; ti: number } | null = null;
+  let best: { s: Sheet; ci: number; ni: number; ti: number; mi: number } | null = null;
   for (const s of sheets) {
     if (s.name === exclude) continue;
     const ci = pick(s.head, CODE_H);
     const ni = pick(s.head, NAME_H);
     if (ci < 0 || ni < 0) continue;
     if (!best || s.aoa.length > best.s.aoa.length) {
-      best = { s, ci, ni, ti: pick(s.head, TYPE_H) };
+      best = { s, ci, ni, ti: pick(s.head, TYPE_H), mi: pick(s.head, MGR_H) };
     }
   }
   return best;
@@ -127,9 +140,12 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
   const si = pick(d.head, SEC_H);
   const mi = pick(d.head, MIN_H);
   const pi = pick(d.head, PERIOD_H);
+  const sti = pick(d.head, STATUS_H);
+  const api = pick(d.head, ["approved by", "approver"]);
 
-  /* Editor and fallback type, by project code. */
+  /* Editor, reviewer and fallback type, by project code. */
   const editor = new Map<string, string>();
+  const reviewer = new Map<string, string>();
   const projectType = new Map<string, string>();
   for (let i = 1; i < lookup.s.aoa.length; i++) {
     const r = lookup.s.aoa[i];
@@ -137,6 +153,8 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
     if (!code) continue;
     const who = cell(r, lookup.ni);
     if (who && !editor.has(code)) editor.set(code, who);
+    const mgr = cell(r, lookup.mi);
+    if (mgr && !reviewer.has(code)) reviewer.set(code, mgr);
     const t = cell(r, lookup.ti);
     if (t && !projectType.has(code)) projectType.set(code, t);
   }
@@ -149,6 +167,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
     pi >= 0 && d.aoa.slice(1).some((r) => cell(r as unknown[], pi) !== "");
 
   const rows: SourceRow[] = [];
+  const approvers = new Map<string, Set<string>>();
   let orphans = 0;
 
   for (let i = 1; i < d.aoa.length; i++) {
@@ -168,12 +187,26 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
 
     const version = numAt(r, vi);
     const type = cell(r, ti) || projectType.get(code) || "";
+    const status = cell(r, sti);
+
+    /* Who signed a deliverable off is recorded, but it is not who reviewed it:
+       most approvals are editors marking their own work. It is kept only to
+       notice projects where several people signed off, since the points go to
+       one manager and those are the projects where that is a guess. */
+    const signer = cell(r, api);
+    if (signer) {
+      const set = approvers.get(code) || new Set<string>();
+      set.add(signer);
+      approvers.set(code, set);
+    }
 
     rows.push({
       raw: who,
       type: type || null,
       mins,
       rev: Math.max(0, Math.round(version) - 1),
+      reviewer: reviewer.get(code) || null,
+      reviewed: sti >= 0 ? isReviewed(status) : false,
     });
   }
 
@@ -189,6 +222,10 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       mode: "deliverables",
       versionColumn: vi >= 0 ? d.head[vi] || null : null,
       orphans,
+      statusColumn: sti >= 0 ? d.head[sti] || null : null,
+      splitApprovals: [...approvers.entries()]
+        .filter(([, set]) => set.size > 1)
+        .map(([code]) => code),
     },
   };
 }
@@ -246,6 +283,8 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       mode: "projects",
       versionColumn: null,
       orphans: 0,
+      statusColumn: null,
+      splitApprovals: [],
     },
   };
 }

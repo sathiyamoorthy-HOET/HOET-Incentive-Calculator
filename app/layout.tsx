@@ -17,7 +17,7 @@ const mono = Source_Code_Pro({
 });
 
 export const metadata: Metadata = {
-  title: { default: "HOET Incentive", template: "%s · HOET Incentive" },
+  title: { default: "HOET Incentive calculator", template: "%s · HOET Incentive calculator" },
   description: "Monthly editor incentive calculation for House of EduTech.",
 };
 

@@ -1,4 +1,4 @@
-# HOET Incentive
+# HOET Incentive calculator
 
 Monthly incentive calculation for the House of EduTech editing team.
 

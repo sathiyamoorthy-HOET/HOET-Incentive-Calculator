@@ -15,7 +15,7 @@ export default function LoginForm() {
   return (
     <form className="box" action={action}>
       <Mark className="brandmark" label="House of EduTech" />
-      <h1>HOET Incentive</h1>
+      <h1>HOET Incentive calculator</h1>
       <p className="sub">Sign in to run the monthly incentive calculation.</p>
 
       {state.error && (

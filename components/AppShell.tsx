@@ -150,7 +150,7 @@ export default function AppShell({
       <header>
         <Link className="brand" href="/run">
           <Mark className="mark" />
-          <h1>HOET Incentive</h1>
+          <h1>HOET Incentive calculator</h1>
         </Link>
         <div className="mo">
           <span>Month</span>

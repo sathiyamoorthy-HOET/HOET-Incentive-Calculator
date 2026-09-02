@@ -11,8 +11,12 @@ export const EXP: Record<Slab, string> = {
 
 export type Pattern = { name: string; days: number; target: number };
 
-/** `r` is points per minute, indexed by slab: [A, B, C, D]. */
-export type RateRow = { cat: string; r: number[] };
+/**
+ * `r` is points per minute for editing, indexed by slab: [A, B, C, D].
+ * `review` is points per minute for reviewing this kind of video, which does
+ * not vary by slab: the work is the same whoever does it.
+ */
+export type RateRow = { cat: string; r: number[]; review?: number };
 
 export type Editor = {
   name: string;
@@ -38,8 +42,6 @@ export type Config = {
    * video revised more times than the list is long is charged the last entry.
    */
   revPen: number[];
-  /** Points a minute for reviewing, whatever the video type. */
-  reviewRate: number;
   patterns: Pattern[];
   rates: RateRow[];
   map: TypeMap[];
@@ -118,6 +120,7 @@ export type EditorResult = {
   revised: number;
   rounds: number;
   /** Reviewing: minutes reviewed, the points they earned, and videos seen. */
+  revByCat: Record<string, number>;
   reviewMins: number;
   reviewPts: number;
   reviewed: number;

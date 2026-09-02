@@ -153,7 +153,13 @@ h2{font-size:1.42rem;line-height:1.2;letter-spacing:-.02em;color:var(--fg);font-
 .muted{color:var(--muted)}
 .right{margin-left:auto}
 .scroll{overflow-x:auto}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+/* One wide table with the short cards alongside it, so a big screen is not
+   two thirds empty while the numbers crowd into a column. */
+.split{display:grid;grid-template-columns:minmax(0,1080px) minmax(320px,560px);gap:18px;align-items:start}
+@media(max-width:1240px){.split{grid-template-columns:1fr}}
+/* two short cards sharing one column of a g2, so the row ends level */
+.stack>.card:last-child{margin-bottom:0}
 @media(max-width:900px){.g2{grid-template-columns:1fr}}
 .empty{text-align:center;padding:52px 20px;color:var(--muted)}
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}

@@ -31,6 +31,12 @@ export function rateFor(c: Config, cat: string, slab: Slab): number {
   return r ? r.r[SLABS.indexOf(slab)] || 0 : 0;
 }
 
+/** Points a minute for reviewing this kind of video. */
+export function reviewRateFor(c: Config, cat: string): number {
+  const r = c.rates.find((x) => x.cat === cat);
+  return r ? r.review || 0 : 0;
+}
+
 export function upliftOf(r: RateRow, i: number): number {
   return r.r[0] ? r.r[i] / r.r[0] - 1 : 0;
 }
@@ -144,6 +150,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     revised: number;
     rounds: number;
     deducted: number;
+    revByCat: Record<string, number>;
     reviewMins: number;
     reviewPts: number;
     reviewed: number;
@@ -155,7 +162,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
 
   const blank = (): Acc => ({
     mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
-    revised: 0, rounds: 0, deducted: 0, reviewMins: 0, reviewPts: 0, reviewed: 0,
+    revised: 0, rounds: 0, deducted: 0, revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
   });
   const accFor = (name: string): Acc => {
     if (!per.has(name)) per.set(name, blank());
@@ -167,11 +174,13 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     if (isIgnored) continue;
 
     const m = matchEditor(c, r.raw);
+    const cat = catOf(c, r.type);
 
     /* Reviewing is credited from the same row as the editing, because it is
        the same video: the manager of its project reviews it, and only once
-       the status says a review has happened. Their own work does not count. */
-    if (r.reviewed && r.reviewer && (c.reviewRate || 0) > 0) {
+       the status says a review has happened. Their own work does not count,
+       and a video whose type nobody set has no rate to pay either side. */
+    if (r.reviewed && r.reviewer && cat && cat !== NOTPAY) {
       const who = r.reviewer;
       const skip = ignore.some((x) => x.toLowerCase() === who.toLowerCase());
       if (!skip) {
@@ -181,7 +190,8 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
           if (!own) {
             const acc = accFor(rv.e.name);
             acc.reviewMins += r.mins;
-            acc.reviewPts += r.mins * c.reviewRate;
+            acc.reviewPts += r.mins * reviewRateFor(c, cat);
+            acc.revByCat[cat] = (acc.revByCat[cat] || 0) + r.mins;
             acc.reviewed += 1;
           }
         } else {
@@ -203,7 +213,6 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     rec.mins += r.mins;
 
     const raw = r.type && String(r.type).trim() ? String(r.type).trim() : null;
-    const cat = catOf(c, r.type);
 
     if (cat === null) {
       rec.untyped += r.mins;
@@ -237,7 +246,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         per.get(e.name) || {
           mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
           revised: 0, rounds: 0, deducted: 0,
-          reviewMins: 0, reviewPts: 0, reviewed: 0,
+          revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
         };
       const target = targetOf(c, e);
       const pts = round(rec.pts + rec.reviewPts, 1);
@@ -262,6 +271,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         revised: rec.revised,
         rounds: rec.rounds,
         deducted: round(rec.deducted, 1),
+        revByCat: rec.revByCat,
         reviewMins: round(rec.reviewMins, 1),
         reviewPts: round(rec.reviewPts, 1),
         reviewed: rec.reviewed,

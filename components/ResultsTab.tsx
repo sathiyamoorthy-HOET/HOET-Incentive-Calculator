@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { cats, inr, num, rateFor, round, totals } from "@/lib/calc";
+import { cats, inr, num, rateFor, reviewRateFor, round, totals } from "@/lib/calc";
 import { exportRun } from "@/lib/export";
 import { ActiveRun, Computed, Config, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
@@ -497,7 +497,7 @@ export default function ResultsTab({
                     <tr key={r.name + "-det"} className="det on">
                       <td colSpan={12}>
                         <div className="detbox">
-                          {keys.length || r.untyped > 0.05 ? (
+                          {keys.length || r.untyped > 0.05 || r.reviewed ? (
                             <table style={{ width: "auto", minWidth: 460 }}>
                               <thead>
                                 <tr>
@@ -529,20 +529,24 @@ export default function ResultsTab({
                                     </tr>
                                   );
                                 })}
-                                {r.reviewPts > 0.05 && (
-                                  <tr>
-                                    <td>
-                                      Reviewed for others
-                                      <span className="muted" style={{ fontSize: 11.5 }}>
-                                        {" · " + r.reviewed + " video" + (r.reviewed === 1 ? "" : "s")}
-                                      </span>
-                                    </td>
-                                    <td className="r num">{r.reviewMins}</td>
-                                    <td className="r num">{config.reviewRate ?? 0}</td>
-                                    <td className="r">—</td>
-                                    <td className="r num">{num(r.reviewPts)}</td>
-                                  </tr>
-                                )}
+                                {Object.keys(r.revByCat).map((c) => {
+                                  const mn = round(r.revByCat[c], 1);
+                                  const rt = reviewRateFor(config, c);
+                                  return (
+                                    <tr key={"rev-" + c}>
+                                      <td>
+                                        {c}
+                                        <span className="muted" style={{ fontSize: 11.5 }}>
+                                          {" · reviewed for others"}
+                                        </span>
+                                      </td>
+                                      <td className="r num">{mn}</td>
+                                      <td className="r num">{rt || "—"}</td>
+                                      <td className="r">—</td>
+                                      <td className="r num">{Math.round(mn * rt)}</td>
+                                    </tr>
+                                  );
+                                })}
                                 {r.untyped > 0.05 && (
                                   <tr>
                                     <td style={{ color: "var(--red)" }}>No video type recorded</td>

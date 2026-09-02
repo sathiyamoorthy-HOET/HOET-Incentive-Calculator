@@ -42,12 +42,11 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Incentive");
 
-  const rc: (string | number)[][] = [["Video type", "A", "B", "C", "D"]];
-  c.rates.forEach((r) => rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3]]));
+  const rc: (string | number)[][] = [["Video type", "A", "B", "C", "D", "Review / min"]];
+  c.rates.forEach((r) => rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3], r.review ?? 0]));
   rc.push([]);
   rc.push(["Points per working day", c.ppd]);
   rc.push(["Incentive per point above target", c.rate]);
-  rc.push(["Points per minute for reviewing", c.reviewRate ?? 0]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
   const ladder = c.revPen || [];
   if (ladder.length) {
@@ -63,7 +62,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   }
 
   const ws2 = XLSX.utils.aoa_to_sheet(rc);
-  ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }];
+  ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }];
   XLSX.utils.book_append_sheet(wb, ws2, "Rate card");
 
   XLSX.writeFile(wb, "HOET_Incentive_" + mo.replace(/[^\w]+/g, "_") + ".xlsx");

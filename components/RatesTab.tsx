@@ -28,6 +28,8 @@ export default function RatesTab({
     });
   }
 
+  const ladder = config.revPen ?? [];
+
   return (
     <section className="panel on narrow">
       <h2>Rate card</h2>
@@ -157,6 +159,87 @@ export default function RatesTab({
                     )}
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </EditCard>
+
+      <EditCard
+        title="Revisions"
+        hint={
+          "A deliverable's version says how many times it came back: version 1 is a first-pass " +
+          "approval, 2 is one revision, 3 is two. The deduction is read by round, not added up — " +
+          "three rounds costs the third rung, and more rounds than the ladder has costs the last one."
+        }
+        tools={
+          <>
+            <button
+              className="btn o"
+              onClick={() =>
+                update((d) => {
+                  d.revPen = d.revPen ?? [];
+                  d.revPen.push(d.revPen[d.revPen.length - 1] ?? 5);
+                })
+              }
+            >
+              Add a round
+            </button>
+            {ladder.length > 1 && (
+              <button className="btn o" onClick={() => update((d) => { d.revPen?.pop(); })}>
+                Remove the last
+              </button>
+            )}
+          </>
+        }
+      >
+        {(editing) => (
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Rounds of revision</th>
+                  <th className="r" style={{ width: 150 }}>Deducted</th>
+                  <th>What that means</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ladder.map((pct, i) => (
+                  <tr key={i}>
+                    <td>
+                      {i + 1} revision{i ? "s" : ""}
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {" · version " + (i + 2)}
+                      </span>
+                    </td>
+                    <td className={editing ? "" : "r num"}>
+                      {editing ? (
+                        <NumInput
+                          value={pct}
+                          step="1"
+                          min="0"
+                          onCommit={(v) =>
+                            update((d) => { d.revPen[i] = Math.min(100, Math.max(0, v)); })
+                          }
+                        />
+                      ) : (
+                        pct + "%"
+                      )}
+                    </td>
+                    <td className="muted" style={{ fontSize: 12.5 }}>
+                      {i === ladder.length - 1
+                        ? `${i + 1} or more rounds cost ${pct}% of that video's points`
+                        : `${pct}% off that video's points`}
+                    </td>
+                  </tr>
+                ))}
+                {ladder.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      No ladder set, so revisions cost nothing.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -28,6 +28,12 @@ export type TypeMap = [string, string];
 export type Config = {
   ppd: number;
   rate: number;
+  /**
+   * What a revision costs, as a percentage of that video's points, indexed by
+   * how many rounds it took: [0] is one revision, [1] is two, and so on. A
+   * video revised more times than the list is long is charged the last entry.
+   */
+  revPen: number[];
   patterns: Pattern[];
   rates: RateRow[];
   map: TypeMap[];
@@ -35,8 +41,17 @@ export type Config = {
   team: Editor[];
 };
 
-/** One row as read out of the uploaded delivery report. */
-export type SourceRow = { raw: string; type: string | null; mins: number };
+/**
+ * One row as read out of the uploaded delivery report — one deliverable when
+ * the report has them, otherwise one project.
+ */
+export type SourceRow = {
+  raw: string;
+  type: string | null;
+  mins: number;
+  /** Rounds of revision this video went through. Version 1 means none. */
+  rev?: number;
+};
 
 /** What the parser made of the file, so the Results page can explain itself. */
 export type ParsedSource = {
@@ -45,6 +60,16 @@ export type ParsedSource = {
   headers: string[];
   /** The header it took the video type from, or null when there was none. */
   typeColumn: string | null;
+  /**
+   * "deliverables" prices each deliverable and counts its revisions, taking
+   * the editor from the parent project. "projects" is the older, coarser read:
+   * one row per project, no revision data.
+   */
+  mode: "deliverables" | "projects";
+  /** The header revisions were counted from, or null when there was none. */
+  versionColumn: string | null;
+  /** Deliverables that could not be tied back to a project, so were skipped. */
+  orphans: number;
 };
 
 /** The report currently on screen, either just uploaded or opened from History. */
@@ -70,6 +95,13 @@ export type EditorResult = {
   untyped: number;
   notPay: number;
   byCat: Record<string, number>;
+  /** Points taken off for revisions, by category. */
+  dedByCat: Record<string, number>;
+  /** Videos that took at least one revision, and the rounds they took. */
+  revised: number;
+  rounds: number;
+  /** Points taken off for revisions, before target and incentive. */
+  deducted: number;
   pts: number;
   target: number;
   surplus: number;

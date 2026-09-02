@@ -8,6 +8,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
     [
       "Editor", "Slab", "Experience", "Work pattern", "Days available",
       "Minutes delivered", "Minutes with no type", "Minutes not payable",
+      "Videos revised", "Revision rounds", "Points off for revisions",
       "Points earned", "Target points", "Points above target",
       "Incentive (INR)", "Status",
     ],
@@ -15,6 +16,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   out.forEach((r) =>
     aoa.push([
       r.name, r.slab, r.exp, r.pattern, r.days, r.mins, r.untyped, r.notPay,
+      r.revised, r.rounds, round(r.deducted, 1),
       round(r.pts, 1), r.target, r.surplus, r.incentive, STATUS[r.status][1],
     ])
   );
@@ -23,6 +25,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   aoa.push([]);
   aoa.push([
     "TOTAL", "", "", "", "", round(t.m, 1), "", "",
+    out.reduce((a, r) => a + r.revised, 0), out.reduce((a, r) => a + r.rounds, 0), round(t.d, 1),
     round(t.p, 1), Math.round(t.t), round(t.s, 1), Math.round(t.i), "",
   ]);
 
@@ -30,7 +33,8 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = [
     { wch: 26 }, { wch: 6 }, { wch: 11 }, { wch: 15 }, { wch: 8 }, { wch: 10 },
-    { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 17 },
+    { wch: 11 }, { wch: 11 }, { wch: 8 }, { wch: 9 }, { wch: 12 },
+    { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 17 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Incentive");
 
@@ -40,6 +44,18 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   rc.push(["Points per working day", c.ppd]);
   rc.push(["Incentive per point above target", c.rate]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
+  const ladder = c.revPen || [];
+  if (ladder.length) {
+    rc.push([]);
+    rc.push(["Revision deductions", "% off that video's points"]);
+    ladder.forEach((pct, i) =>
+      rc.push([
+        i + 1 + " revision" + (i ? "s" : "") + " (version " + (i + 2) + ")",
+        pct + "%",
+        i === ladder.length - 1 ? "and any more rounds" : "",
+      ])
+    );
+  }
 
   const ws2 = XLSX.utils.aoa_to_sheet(rc);
   ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }];

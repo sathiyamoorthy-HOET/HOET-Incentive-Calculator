@@ -49,6 +49,18 @@ export function targetOf(c: Config, e: Editor): number {
   return round((p.target * daysOf(c, e)) / p.days, 0);
 }
 
+/**
+ * What a revision costs, as a fraction of that video's points. The ladder is
+ * read by round count, not summed: three rounds is charged the third rung, and
+ * anything beyond the ladder is charged its last rung.
+ */
+export function penaltyOf(c: Config, rounds: number): number {
+  const ladder = c.revPen || [];
+  if (rounds <= 0 || !ladder.length) return 0;
+  const pct = ladder[Math.min(rounds, ladder.length) - 1] || 0;
+  return Math.min(1, Math.max(0, pct / 100));
+}
+
 /** Returns the payable category for a report type, or null when unmapped. */
 export function catOf(c: Config, type: string | null | undefined): string | null {
   const t = String(type ?? "").trim().toLowerCase();
@@ -121,7 +133,17 @@ export function matchEditor(c: Config, raw: string): { e: Editor | null; score: 
    paid only on points above target, so surplus is floored at zero. */
 
 export function compute(c: Config, rows: SourceRow[]): Computed {
-  type Acc = { mins: number; pts: number; byCat: Record<string, number>; untyped: number; notPay: number };
+  type Acc = {
+    mins: number;
+    pts: number;
+    byCat: Record<string, number>;
+    dedByCat: Record<string, number>;
+    untyped: number;
+    notPay: number;
+    revised: number;
+    rounds: number;
+    deducted: number;
+  };
   const per = new Map<string, Acc>();
   const unknownTypes = new Map<string, number>();
   const unmatched = new Map<string, { mins: number; best: string | null; score: number }>();
@@ -140,7 +162,11 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     }
 
     const key = m.e.name;
-    if (!per.has(key)) per.set(key, { mins: 0, pts: 0, byCat: {}, untyped: 0, notPay: 0 });
+    if (!per.has(key))
+      per.set(key, {
+        mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
+        revised: 0, rounds: 0, deducted: 0,
+      });
     const rec = per.get(key)!;
     rec.mins += r.mins;
 
@@ -157,13 +183,29 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       rec.byCat[cat] = (rec.byCat[cat] || 0) + r.mins;
       continue;
     }
-    rec.pts += r.mins * rateFor(c, cat, m.e.slab);
+    /* Revisions are charged against the video that was revised, so the
+       deduction is visible next to the work it came from. */
+    const gross = r.mins * rateFor(c, cat, m.e.slab);
+    const rounds = Math.max(0, Math.round(r.rev ?? 0));
+    const cut = round(gross * penaltyOf(c, rounds), 4);
+
+    rec.pts += gross - cut;
+    rec.deducted += cut;
     rec.byCat[cat] = (rec.byCat[cat] || 0) + r.mins;
+    if (rounds > 0) {
+      rec.revised += 1;
+      rec.rounds += rounds;
+      if (cut > 0) rec.dedByCat[cat] = (rec.dedByCat[cat] || 0) + cut;
+    }
   }
 
   const out: EditorResult[] = c.team
     .map((e) => {
-      const rec = per.get(e.name) || { mins: 0, pts: 0, byCat: {}, untyped: 0, notPay: 0 };
+      const rec =
+        per.get(e.name) || {
+          mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
+          revised: 0, rounds: 0, deducted: 0,
+        };
       const target = targetOf(c, e);
       const pts = round(rec.pts, 1);
       const surplus = Math.max(0, round(pts - target, 1));
@@ -182,6 +224,10 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         untyped: round(rec.untyped, 1),
         notPay: round(rec.notPay, 1),
         byCat: rec.byCat,
+        dedByCat: rec.dedByCat,
+        revised: rec.revised,
+        rounds: rec.rounds,
+        deducted: round(rec.deducted, 1),
         pts,
         target,
         surplus,
@@ -208,7 +254,8 @@ export function totals(out: EditorResult[]) {
       t: a.t + r.target,
       s: a.s + r.surplus,
       i: a.i + r.incentive,
+      d: a.d + r.deducted,
     }),
-    { m: 0, p: 0, t: 0, s: 0, i: 0 }
+    { m: 0, p: 0, t: 0, s: 0, i: 0, d: 0 }
   );
 }

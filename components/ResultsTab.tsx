@@ -60,6 +60,9 @@ export default function ResultsTab({
      with the columns the file did have, instead of leaving a zero to explain
      itself. */
   const noTypeColumn = !!run.source && run.source.typeColumn === null && untypedTotal > 0.05;
+  /* Two ways a report can be short of what the rate card now prices on. */
+  const noVersions = !!run.source && run.source.mode === "projects";
+  const orphans = run.source?.orphans ?? 0;
   const hasProblems =
     result.unmatched.length > 0 || result.unknownTypes.length > 0 || untypedTotal > 0.05;
 
@@ -108,6 +111,26 @@ export default function ResultsTab({
           <strong>Category</strong> to the export — anything whose name contains &ldquo;type&rdquo;
           or &ldquo;category&rdquo; is read — then upload it again. The names in it are matched on
           the Video types page.
+        </div>
+      )}
+
+      {noVersions && (
+        <div className="note">
+          <strong>No revisions counted in this report.</strong> It was read one row per project
+          from
+          {run.source?.sheet ? ' "' + run.source.sheet + '"' : " the sheet"}, which carries no
+          version column, so every video is priced as a first-pass approval. A report with a
+          deliverables sheet prices each video on its own and charges the ladder on the rate card.
+        </div>
+      )}
+
+      {orphans > 0 && (
+        <div className="note">
+          <strong>
+            {orphans} deliverable{orphans > 1 ? "s" : ""} could not be tied to a project
+          </strong>{" "}
+          and {orphans > 1 ? "were" : "was"} left out, because the editor is named on the project
+          rather than the deliverable.
         </div>
       )}
 
@@ -351,6 +374,7 @@ export default function ResultsTab({
           s="Cleared target, of those who delivered"
           cls={cleared.length ? "hi" : "warn"}
         />
+        {t.d > 0.05 && <Kpi b={"−" + num(t.d)} s="Points off for revisions" cls="warn" />}
         <Kpi b={inr(t.i)} s="Incentive payable" cls="hi" />
       </div>
 
@@ -372,6 +396,10 @@ export default function ResultsTab({
                 <th>Editor</th>
                 <th>Slab</th>
                 <th className="r">Minutes</th>
+                <th className="r" title="Videos that came back, and the rounds they took">
+                  Revisions
+                </th>
+                <th className="r">Deducted</th>
                 <th className="r">Points</th>
                 <th className="r">Target</th>
                 <th style={{ width: 80 }}>Progress</th>
@@ -394,6 +422,23 @@ export default function ResultsTab({
                     </td>
                     <td>{r.slab}</td>
                     <td className="r num">{r.mins}</td>
+                    <td className="r num">
+                      {r.revised ? (
+                        <>
+                          {r.revised}
+                          {r.rounds > r.revised && (
+                            <span className="muted" style={{ fontSize: 11.5 }}>
+                              {" / " + r.rounds + " rounds"}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="r num" style={r.deducted > 0.05 ? { color: "var(--rose)" } : undefined}>
+                      {r.deducted > 0.05 ? "−" + num(r.deducted) : "—"}
+                    </td>
                     <td className="r num"><strong>{num(r.pts)}</strong></td>
                     <td className="r num">{r.target}</td>
                     <td>
@@ -418,7 +463,7 @@ export default function ResultsTab({
                 if (isOpen) {
                   rows.push(
                     <tr key={r.name + "-det"} className="det on">
-                      <td colSpan={9}>
+                      <td colSpan={11}>
                         <div className="detbox">
                           {keys.length || r.untyped > 0.05 ? (
                             <table style={{ width: "auto", minWidth: 460 }}>
@@ -427,6 +472,7 @@ export default function ResultsTab({
                                   <th>Video type</th>
                                   <th className="r">Minutes</th>
                                   <th className="r">Rate</th>
+                                  <th className="r">Deducted</th>
                                   <th className="r">Points</th>
                                 </tr>
                               </thead>
@@ -439,14 +485,23 @@ export default function ResultsTab({
                                       <td>{c}</td>
                                       <td className="r num">{mn}</td>
                                       <td className="r num">{rt ? rt : "—"}</td>
-                                      <td className="r num">{rt ? Math.round(mn * rt) : 0}</td>
+                                      <td
+                                        className="r num"
+                                        style={r.dedByCat[c] ? { color: "var(--rose)" } : undefined}
+                                      >
+                                        {r.dedByCat[c] ? "−" + round(r.dedByCat[c], 1) : "—"}
+                                      </td>
+                                      <td className="r num">
+                                        {rt ? Math.round(mn * rt - (r.dedByCat[c] || 0)) : 0}
+                                      </td>
                                     </tr>
                                   );
                                 })}
                                 {r.untyped > 0.05 && (
                                   <tr>
                                     <td style={{ color: "var(--red)" }}>No video type recorded</td>
-                                    <td className="r num" style={{ color: "var(--red)" }}>{r.untyped}</td>
+                                    <td className="r num" style={{ color: "var(--rose)" }}>{r.untyped}</td>
+                                    <td className="r">—</td>
                                     <td className="r">—</td>
                                     <td className="r num">0</td>
                                   </tr>
@@ -471,6 +526,8 @@ export default function ResultsTab({
               <tr>
                 <td colSpan={2}>Total</td>
                 <td className="r num">{round(t.m, 0)}</td>
+                <td className="r num">{o.reduce((a, r) => a + r.revised, 0) || "—"}</td>
+                <td className="r num">{t.d > 0.05 ? "−" + num(t.d) : "—"}</td>
                 <td className="r num">{num(t.p)}</td>
                 <td className="r num">{num(t.t)}</td>
                 <td />

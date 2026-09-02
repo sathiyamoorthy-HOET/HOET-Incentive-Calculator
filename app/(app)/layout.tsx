@@ -35,8 +35,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const label = user.user_metadata?.full_name || user.email || "Signed in";
 
+  /* The revision ladder arrives only once its migration has been applied. */
+  const shared = config as Config;
+  shared.revPen = shared.revPen ?? [];
+
   return (
-    <AppShell initialConfig={config as Config} userLabel={label}>
+    <AppShell initialConfig={shared} userLabel={label}>
       {children}
     </AppShell>
   );

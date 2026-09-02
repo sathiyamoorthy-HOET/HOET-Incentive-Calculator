@@ -8,6 +8,9 @@ const NAME_H = ["assignee", "editor", "member", "name", "owner"];
 const TYPE_H = ["type", "video type", "project type", "category"];
 const SEC_H = ["runtime in period (sec)", "duration (sec)", "runtime (sec)", "seconds"];
 const MIN_H = ["minutes", "runtime (min)", "duration (min)"];
+const CODE_H = ["project code", "project id", "code"];
+const VER_H = ["version", "revision no", "revisions"];
+const PERIOD_H = ["uploaded in period", "upload in period"];
 
 /** Finds a column by exact header first, then by substring. -1 when absent. */
 function pick(hdrs: unknown[], cands: string[]): number {
@@ -27,10 +30,32 @@ export type ParseResult =
   | { ok: true; rows: SourceRow[]; source: ParsedSource }
   | { ok: false; error: string };
 
+type Sheet = { name: string; aoa: unknown[][]; head: string[] };
+
+const cell = (r: unknown[] | undefined, i: number) =>
+  r && i >= 0 && r[i] != null ? String(r[i]).trim() : "";
+
+const numAt = (r: unknown[] | undefined, i: number) =>
+  r && i >= 0 && r[i] != null ? parseFloat(String(r[i])) || 0 : 0;
+
+/** Minutes from whichever duration column the sheet has. */
+function minutesOf(r: unknown[], si: number, mi: number): number {
+  if (si >= 0 && r[si] != null) return numAt(r, si) / 60;
+  if (mi >= 0 && r[mi] != null) return numAt(r, mi);
+  return 0;
+}
+
 /**
- * Scans every sheet and keeps the one that looks most like a delivery report:
- * it must have an editor column and a duration column, and having a type
- * column as well breaks the tie.
+ * Reads the delivery report.
+ *
+ * Preferred shape is one row per *deliverable*: that is the level at which a
+ * video has a version, and so the only level at which a revision can be
+ * charged for. Deliverables carry no editor, so the editor comes from the
+ * parent project, joined on the project code.
+ *
+ * A report without a deliverables sheet still works the old way — one row per
+ * project, no revisions — and says so, rather than quietly pricing every
+ * video as a first-time pass.
  */
 export function parseReport(data: ArrayBuffer): ParseResult {
   let wb: XLSX.WorkBook;
@@ -40,19 +65,150 @@ export function parseReport(data: ArrayBuffer): ParseResult {
     return { ok: false, error: "That file could not be read. Export it again as .xlsx or .csv and retry." };
   }
 
-  let best: { sn: string; aoa: unknown[][]; ni: number; ti: number; si: number; mi: number; sc: number } | null = null;
-
-  for (const sn of wb.SheetNames) {
-    const aoa = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sn], { header: 1, defval: null });
+  const sheets: Sheet[] = [];
+  for (const name of wb.SheetNames) {
+    const aoa = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null });
     if (!aoa.length) continue;
-    const h = (aoa[0] || []) as unknown[];
-    const ni = pick(h, NAME_H),
-      ti = pick(h, TYPE_H),
-      si = pick(h, SEC_H),
-      mi = pick(h, MIN_H);
+    sheets.push({
+      name,
+      aoa,
+      head: ((aoa[0] || []) as unknown[]).map((h) => String(h ?? "").trim()),
+    });
+  }
+
+  const deliverables = bestDeliverables(sheets);
+  if (deliverables) {
+    const joined = fromDeliverables(deliverables, sheets);
+    if (joined) return joined;
+  }
+
+  return fromProjects(sheets);
+}
+
+/** A deliverables sheet has a version, a duration and a project to join to. */
+function bestDeliverables(sheets: Sheet[]): Sheet | null {
+  let best: Sheet | null = null;
+  for (const s of sheets) {
+    const hasVersion = pick(s.head, VER_H) >= 0;
+    const hasCode = pick(s.head, CODE_H) >= 0;
+    const hasTime = pick(s.head, SEC_H) >= 0 || pick(s.head, MIN_H) >= 0;
+    /* An editor column means it is a project-shaped sheet that happens to
+       count revisions, not a list of deliverables. */
+    const hasEditor = pick(s.head, NAME_H) >= 0;
+    if (hasVersion && hasCode && hasTime && !hasEditor) {
+      if (!best || s.aoa.length > best.aoa.length) best = s;
+    }
+  }
+  return best;
+}
+
+/** The sheet that can name the editor behind a project code. */
+function projectLookup(sheets: Sheet[], exclude: string) {
+  let best: { s: Sheet; ci: number; ni: number; ti: number } | null = null;
+  for (const s of sheets) {
+    if (s.name === exclude) continue;
+    const ci = pick(s.head, CODE_H);
+    const ni = pick(s.head, NAME_H);
+    if (ci < 0 || ni < 0) continue;
+    if (!best || s.aoa.length > best.s.aoa.length) {
+      best = { s, ci, ni, ti: pick(s.head, TYPE_H) };
+    }
+  }
+  return best;
+}
+
+function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
+  const lookup = projectLookup(sheets, d.name);
+  if (!lookup) return null;
+
+  const ci = pick(d.head, CODE_H);
+  const vi = pick(d.head, VER_H);
+  const ti = pick(d.head, TYPE_H);
+  const si = pick(d.head, SEC_H);
+  const mi = pick(d.head, MIN_H);
+  const pi = pick(d.head, PERIOD_H);
+
+  /* Editor and fallback type, by project code. */
+  const editor = new Map<string, string>();
+  const projectType = new Map<string, string>();
+  for (let i = 1; i < lookup.s.aoa.length; i++) {
+    const r = lookup.s.aoa[i];
+    const code = cell(r, lookup.ci);
+    if (!code) continue;
+    const who = cell(r, lookup.ni);
+    if (who && !editor.has(code)) editor.set(code, who);
+    const t = cell(r, lookup.ti);
+    if (t && !projectType.has(code)) projectType.set(code, t);
+  }
+  if (!editor.size) return null;
+
+  /* The export is already scoped to a period, but a deliverable can carry a
+     duration from an earlier upload. Where the sheet says which ones landed
+     in the period, believe it. */
+  const usePeriod =
+    pi >= 0 && d.aoa.slice(1).some((r) => cell(r as unknown[], pi) !== "");
+
+  const rows: SourceRow[] = [];
+  let orphans = 0;
+
+  for (let i = 1; i < d.aoa.length; i++) {
+    const r = d.aoa[i];
+    if (!r) continue;
+
+    const mins = minutesOf(r, si, mi);
+    if (mins <= 0) continue;
+    if (usePeriod && cell(r, pi) === "") continue;
+
+    const code = cell(r, ci);
+    const who = editor.get(code);
+    if (!who) {
+      orphans++;
+      continue;
+    }
+
+    const version = numAt(r, vi);
+    const type = cell(r, ti) || projectType.get(code) || "";
+
+    rows.push({
+      raw: who,
+      type: type || null,
+      mins,
+      rev: Math.max(0, Math.round(version) - 1),
+    });
+  }
+
+  if (!rows.length) return null;
+
+  return {
+    ok: true,
+    rows,
+    source: {
+      sheet: d.name,
+      headers: d.head.filter(Boolean),
+      typeColumn: ti >= 0 ? d.head[ti] || null : null,
+      mode: "deliverables",
+      versionColumn: vi >= 0 ? d.head[vi] || null : null,
+      orphans,
+    },
+  };
+}
+
+/**
+ * The older read: whichever sheet has an editor and a duration, one row per
+ * project. It must have a type column to break a tie, since a sheet without
+ * one prices nothing.
+ */
+function fromProjects(sheets: Sheet[]): ParseResult {
+  let best: { s: Sheet; ni: number; ti: number; si: number; mi: number; sc: number } | null = null;
+
+  for (const s of sheets) {
+    const ni = pick(s.head, NAME_H);
+    const ti = pick(s.head, TYPE_H);
+    const si = pick(s.head, SEC_H);
+    const mi = pick(s.head, MIN_H);
     if (ni >= 0 && (si >= 0 || mi >= 0)) {
-      const sc = (ti >= 0 ? 2 : 0) + aoa.length / 1000;
-      if (!best || sc > best.sc) best = { sn, aoa, ni, ti, si, mi, sc };
+      const sc = (ti >= 0 ? 2 : 0) + s.aoa.length / 1000;
+      if (!best || sc > best.sc) best = { s, ni, ti, si, mi, sc };
     }
   }
 
@@ -65,34 +221,31 @@ export function parseReport(data: ArrayBuffer): ParseResult {
   }
 
   const rows: SourceRow[] = [];
-  for (let i = 1; i < best.aoa.length; i++) {
-    const r = best.aoa[i];
+  for (let i = 1; i < best.s.aoa.length; i++) {
+    const r = best.s.aoa[i];
     if (!r) continue;
-    const nm = r[best.ni];
-    if (!nm || !String(nm).trim()) continue;
-    let mins = 0;
-    if (best.si >= 0 && r[best.si] != null) mins = (parseFloat(String(r[best.si])) || 0) / 60;
-    else if (best.mi >= 0 && r[best.mi] != null) mins = parseFloat(String(r[best.mi])) || 0;
+    const nm = cell(r, best.ni);
+    if (!nm) continue;
     rows.push({
-      raw: String(nm).trim(),
-      type: best.ti >= 0 && r[best.ti] != null ? String(r[best.ti]) : null,
-      mins,
+      raw: nm,
+      type: best.ti >= 0 ? cell(r, best.ti) || null : null,
+      mins: minutesOf(r, best.si, best.mi),
+      rev: 0,
     });
   }
 
   if (!rows.length) return { ok: false, error: "That sheet has headers but no data rows." };
 
-  /* Index into the row as it is, and only drop the blanks for display: a gap
-     before the type column would otherwise shift the name off by one. */
-  const raw = ((best.aoa[0] || []) as unknown[]).map((h) => String(h ?? "").trim());
-
   return {
     ok: true,
     rows,
     source: {
-      sheet: best.sn,
-      headers: raw.filter(Boolean),
-      typeColumn: best.ti >= 0 ? raw[best.ti] || null : null,
+      sheet: best.s.name,
+      headers: best.s.head.filter(Boolean),
+      typeColumn: best.ti >= 0 ? best.s.head[best.ti] || null : null,
+      mode: "projects",
+      versionColumn: null,
+      orphans: 0,
     },
   };
 }

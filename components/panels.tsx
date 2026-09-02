@@ -1,0 +1,110 @@
+"use client";
+
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { compute } from "@/lib/calc";
+import { ActiveRun, Config, SourceRow } from "@/lib/types";
+import { useApp } from "./AppShell";
+import RunTab from "./RunTab";
+import ResultsTab from "./ResultsTab";
+import TeamTab from "./TeamTab";
+import RatesTab from "./RatesTab";
+import MapTab from "./MapTab";
+
+/**
+ * One thin client wrapper per page. Each page file stays a Server Component so
+ * it can own its metadata; the wrapper is what reaches into the shared state
+ * held by AppShell.
+ */
+
+export function RunPanel() {
+  const { setRun } = useApp();
+  const router = useRouter();
+  return (
+    <RunTab
+      onLoaded={(rows, fileName) => {
+        setRun({ rows, fileName, snapshot: null, savedId: null });
+        router.push("/results");
+      }}
+    />
+  );
+}
+
+export function ResultsPanel() {
+  const { config, activeConfig, run, result, month, update, setRun } = useApp();
+  const router = useRouter();
+  return (
+    <ResultsTab
+      config={activeConfig}
+      liveConfig={config}
+      run={run}
+      result={result}
+      month={month}
+      update={update}
+      onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
+      onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
+      goRun={() => router.push("/run")}
+    />
+  );
+}
+
+/**
+ * A run opened from History. The report and the rate card of the day come from
+ * the URL's own server render, so the page is shareable: anyone signed in who
+ * opens the link sees the same payout.
+ */
+export function SavedRunPanel({
+  id,
+  monthLabel,
+  fileName,
+  rows,
+  snapshot,
+}: {
+  id: number;
+  monthLabel: string;
+  fileName: string;
+  rows: SourceRow[];
+  snapshot: Config;
+}) {
+  const { config, update, setRun, setMonth } = useApp();
+  const router = useRouter();
+
+  const run = useMemo<ActiveRun>(
+    () => ({ rows, fileName, snapshot, savedId: id }),
+    [rows, fileName, snapshot, id]
+  );
+  const result = useMemo(() => compute(snapshot, rows), [snapshot, rows]);
+
+  return (
+    <ResultsTab
+      config={snapshot}
+      liveConfig={config}
+      run={run}
+      result={result}
+      month={monthLabel}
+      update={update}
+      onRerunLive={() => {
+        setMonth(monthLabel);
+        setRun({ rows, fileName, snapshot: null, savedId: null });
+        router.push("/results");
+      }}
+      onSaved={() => {}}
+      goRun={() => router.push("/run")}
+    />
+  );
+}
+
+export function TeamPanel() {
+  const { config, update } = useApp();
+  return <TeamTab config={config} update={update} />;
+}
+
+export function RatesPanel() {
+  const { config, update } = useApp();
+  return <RatesTab config={config} update={update} />;
+}
+
+export function MapPanel() {
+  const { config, update } = useApp();
+  return <MapTab config={config} update={update} />;
+}

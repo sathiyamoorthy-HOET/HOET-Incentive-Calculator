@@ -34,15 +34,15 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Incentive");
 
-  const rc: (string | number)[][] = [["Video type", "Deliverable length (min)", "A", "B", "C", "D"]];
-  c.rates.forEach((r) => rc.push([r.cat, r.len, r.r[0], r.r[1], r.r[2], r.r[3]]));
+  const rc: (string | number)[][] = [["Video type", "A", "B", "C", "D"]];
+  c.rates.forEach((r) => rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3]]));
   rc.push([]);
   rc.push(["Points per working day", c.ppd]);
   rc.push(["Incentive per point above target", c.rate]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
 
   const ws2 = XLSX.utils.aoa_to_sheet(rc);
-  ws2["!cols"] = [{ wch: 34 }, { wch: 20 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }];
+  ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }];
   XLSX.utils.book_append_sheet(wb, ws2, "Rate card");
 
   XLSX.writeFile(wb, "HOET_Incentive_" + mo.replace(/[^\w]+/g, "_") + ".xlsx");
@@ -58,13 +58,4 @@ export function exportTeam(c: Config) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Team");
   XLSX.writeFile(wb, "HOET_Incentive_team_list.xlsx");
-}
-
-export function downloadSettings(c: Config) {
-  const b = new Blob([JSON.stringify(c, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(b);
-  a.download = "HOET-Incentive-settings.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
 }

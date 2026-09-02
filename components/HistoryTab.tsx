@@ -1,38 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { inr, num } from "@/lib/calc";
 import { RunSummary } from "@/lib/types";
-import { deleteRun, listRuns, loadRun } from "@/app/actions";
-import type { ActiveRun } from "./AppShell";
+import { deleteRun } from "@/app/actions";
 
-export default function HistoryTab({
-  initialRuns,
-  onOpen,
-}: {
-  initialRuns: RunSummary[];
-  onOpen: (r: ActiveRun) => void;
-}) {
-  const [runs, setRuns] = useState(initialRuns);
+export default function HistoryTab({ runs }: { runs: RunSummary[] }) {
+  const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  async function open(id: number) {
-    setBusy(id);
-    setError(null);
-    const res = await loadRun(id);
-    setBusy(null);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    onOpen({
-      rows: res.rows,
-      fileName: (res.monthLabel ? res.monthLabel + " · " : "") + (res.fileName || "Saved run"),
-      snapshot: res.config,
-      savedId: id,
-    });
-  }
 
   async function remove(id: number) {
     if (!confirm("Delete this saved run? The spreadsheet you already downloaded is unaffected.")) return;
@@ -44,7 +22,7 @@ export default function HistoryTab({
       setBusy(null);
       return;
     }
-    setRuns(await listRuns());
+    router.refresh();
     setBusy(null);
   }
 
@@ -52,8 +30,9 @@ export default function HistoryTab({
     <section className="panel on">
       <h2>History</h2>
       <p className="sub">
-        Every saved run, with the rate card and team list exactly as they were at the time. Opening
-        one reproduces the payout that was signed off, even if the rate card has changed since.
+        Every saved run, with the rate card and team list exactly as they were at the time. Each one
+        has its own address, so a link reproduces the payout that was signed off even if the rate
+        card has changed since.
       </p>
 
       {error && <div className="note bad">{error}</div>}
@@ -99,9 +78,9 @@ export default function HistoryTab({
                     </td>
                     <td>
                       <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                        <button className="btn" disabled={busy === r.id} onClick={() => open(r.id)}>
-                          {busy === r.id ? <span className="spin" /> : "Open"}
-                        </button>
+                        <Link className="btn" href={"/history/" + r.id}>
+                          Open
+                        </Link>
                         <button className="btn o" disabled={busy === r.id} onClick={() => remove(r.id)}>
                           Delete
                         </button>

@@ -21,11 +21,17 @@ export async function saveConfig(config: Config): Promise<ActionResult> {
   try {
     const { supabase } = await requireUser();
     const { error } = await supabase.rpc("set_config", { p: config });
-    if (error) return { ok: false, error: error.message };
-    revalidatePath("/", "layout");
+    if (error) {
+      // A rejected save loses an edit the user has already seen on screen, so
+      // leave a trace in the server log as well as returning the message.
+      console.error("set_config failed:", error.message, error.details ?? "", error.hint ?? "");
+      return { ok: false, error: error.message };
+    }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not save settings." };
+    const msg = e instanceof Error ? e.message : "Could not save settings.";
+    console.error("saveConfig failed:", msg);
+    return { ok: false, error: msg };
   }
 }
 

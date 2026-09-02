@@ -12,7 +12,7 @@ export const EXP: Record<Slab, string> = {
 export type Pattern = { name: string; days: number; target: number };
 
 /** `r` is points per minute, indexed by slab: [A, B, C, D]. */
-export type RateRow = { cat: string; len: number; r: number[] };
+export type RateRow = { cat: string; r: number[] };
 
 export type Editor = {
   name: string;
@@ -28,7 +28,6 @@ export type TypeMap = [string, string];
 export type Config = {
   ppd: number;
   rate: number;
-  mode: "uplift" | "direct";
   patterns: Pattern[];
   rates: RateRow[];
   map: TypeMap[];
@@ -38,6 +37,15 @@ export type Config = {
 
 /** One row as read out of the uploaded delivery report. */
 export type SourceRow = { raw: string; type: string | null; mins: number };
+
+/** The report currently on screen, either just uploaded or opened from History. */
+export type ActiveRun = {
+  rows: SourceRow[];
+  fileName: string;
+  /** Set when viewing a saved run: prices it with the rate card of the day. */
+  snapshot: Config | null;
+  savedId: number | null;
+};
 
 export type RunStatus = "over" | "under" | "blocked" | "none";
 

@@ -1,57 +1,111 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { compute } from "@/lib/calc";
-import { downloadSettings } from "@/lib/export";
-import { Config, RunSummary, SourceRow } from "@/lib/types";
+import { ActiveRun, Computed, Config } from "@/lib/types";
+import { configProblem } from "@/lib/validate";
 import { saveConfig } from "@/app/actions";
 import { signOut } from "@/app/login/actions";
-import RunTab from "./RunTab";
-import ResultsTab from "./ResultsTab";
-import TeamTab from "./TeamTab";
-import RatesTab from "./RatesTab";
-import MapTab from "./MapTab";
-import HistoryTab from "./HistoryTab";
+import Mark from "./Mark";
+import ThemeToggle from "./ThemeToggle";
 
-export type ActiveRun = {
-  rows: SourceRow[];
-  fileName: string;
-  /** Set when viewing a saved run: prices it with the rate card of the day. */
-  snapshot: Config | null;
-  savedId: number | null;
-};
-
+/** Every page of the app, in the order they appear in the rail. */
 const TABS = [
-  ["run", "Run a month"],
-  ["results", "Results"],
-  ["history", "History"],
-  ["team", "Team"],
-  ["rates", "Rate card"],
-  ["map", "Video types"],
+  ["/run", "Run a month"],
+  ["/results", "Results"],
+  ["/history", "History"],
+  ["/team", "Team"],
+  ["/rate-card", "Rate card"],
+  ["/video-types", "Video types"],
 ] as const;
 
-type Tab = (typeof TABS)[number][0];
 type Sync = "idle" | "busy" | "ok" | "err";
 
+type AppState = {
+  /** The shared rate card as it is now, including unsaved local edits. */
+  config: Config;
+  /** The rate card the report on screen is priced with: a snapshot, or config. */
+  activeConfig: Config;
+  update: (fn: (draft: Config) => void) => void;
+  month: string;
+  setMonth: (m: string) => void;
+  run: ActiveRun | null;
+  setRun: React.Dispatch<React.SetStateAction<ActiveRun | null>>;
+  result: Computed | null;
+};
+
+const AppCtx = createContext<AppState | null>(null);
+
+export function useApp(): AppState {
+  const v = useContext(AppCtx);
+  if (!v) throw new Error("useApp must be used inside AppShell.");
+  return v;
+}
+
+/**
+ * The chrome every page shares — header, page rail — plus the state that has to
+ * outlive a navigation: the rate card being edited and the report on screen.
+ * It lives in the route group's layout, which React keeps mounted as the URL
+ * changes, so moving between pages never drops an uploaded report.
+ */
 export default function AppShell({
   initialConfig,
-  initialRuns,
   userLabel,
+  children,
 }: {
   initialConfig: Config;
-  initialRuns: RunSummary[];
   userLabel: string;
+  children: React.ReactNode;
 }) {
   const [config, setConfig] = useState<Config>(initialConfig);
   const [run, setRun] = useState<ActiveRun | null>(null);
   const [month, setMonth] = useState("");
-  const [tab, setTab] = useState<Tab>("run");
   const [sync, setSync] = useState<Sync>("idle");
   const [syncMsg, setSyncMsg] = useState("");
   const [, startTransition] = useTransition();
+  const pathname = usePathname();
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingConfig = useRef<Config | null>(null);
+
+  /* Pushes whatever the last edit produced. Separate from the debounce so the
+     banner below can retry a save the database refused. */
+  const flush = useCallback(async () => {
+    const toSave = pendingConfig.current;
+    if (!toSave) return;
+
+    /* A duplicate name cannot be stored, and the database refuses the whole
+       config when it sees one. Say so plainly instead of spending a round trip
+       to be told in constraint language. */
+    const problem = configProblem(toSave);
+    if (problem) {
+      setSync("err");
+      setSyncMsg(problem);
+      return;
+    }
+
+    setSync("busy");
+    setSyncMsg("Saving…");
+    const res = await saveConfig(toSave);
+    if (res.ok) {
+      setSync("ok");
+      setSyncMsg("Saved for everyone");
+    } else {
+      setSync("err");
+      setSyncMsg(res.error);
+    }
+  }, []);
 
   /* Config edits are frequent (every keystroke on a rate), so they are applied
      to local state at once and pushed to Supabase on a short debounce. */
@@ -66,26 +120,19 @@ export default function AppShell({
     if (timer.current) clearTimeout(timer.current);
     setSync("busy");
     setSyncMsg("Saving…");
-    timer.current = setTimeout(async () => {
-      const toSave = pendingConfig.current;
-      if (!toSave) return;
-      const res = await saveConfig(toSave);
-      if (res.ok) {
-        setSync("ok");
-        setSyncMsg("Saved for everyone");
-      } else {
-        setSync("err");
-        setSyncMsg(res.error);
-      }
-    }, 700);
-  }, []);
+    timer.current = setTimeout(flush, 700);
+  }, [flush]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  const replaceConfig = useCallback(
-    (next: Config) => update((draft) => Object.assign(draft, next)),
-    [update]
-  );
+  /* An edit lives in the browser for up to the debounce before it reaches the
+     database. Closing the tab in that window would drop it silently, so ask. */
+  useEffect(() => {
+    if (sync !== "busy" && sync !== "err") return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [sync]);
 
   const activeConfig = run?.snapshot ?? config;
   const result = useMemo(
@@ -93,17 +140,20 @@ export default function AppShell({
     [activeConfig, run]
   );
 
-  const openRun = useCallback((r: ActiveRun) => {
-    setRun(r);
-    setTab("results");
-  }, []);
+  const value = useMemo<AppState>(
+    () => ({ config, activeConfig, update, month, setMonth, run, setRun, result }),
+    [config, activeConfig, update, month, run, result]
+  );
 
   return (
-    <>
+    <AppCtx.Provider value={value}>
       <header>
-        <h1>HOET Incentive</h1>
-        <div className="row" style={{ gap: 7 }}>
-          <span style={{ color: "#9AA6B8", fontSize: 12 }}>Month</span>
+        <Link className="brand" href="/run">
+          <Mark className="mark" />
+          <h1>HOET Incentive</h1>
+        </Link>
+        <div className="mo">
+          <span>Month</span>
           <input
             type="text"
             value={month}
@@ -117,15 +167,7 @@ export default function AppShell({
           {syncMsg || "All settings shared"}
         </span>
         <div className="row">
-          <button className="btn o" onClick={() => downloadSettings(config)}>
-            Download settings
-          </button>
-          <button
-            className="btn o"
-            onClick={() => document.getElementById("loadCfg")?.click()}
-          >
-            Load settings
-          </button>
+          <ThemeToggle />
           <span className="who">{userLabel}</span>
           <button className="lnk" onClick={() => startTransition(() => { signOut(); })}>
             Sign out
@@ -133,68 +175,31 @@ export default function AppShell({
         </div>
       </header>
 
-      <nav className="tabs" role="tablist">
-        {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id as Tab)}
+      <nav className="tabs" aria-label="Pages">
+        {TABS.map(([href, label]) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={
+              pathname === href || pathname.startsWith(href + "/") ? "page" : undefined
+            }
           >
             {label}
-          </button>
+          </Link>
         ))}
       </nav>
 
-      <main>
-        {tab === "run" && (
-          <RunTab
-            onLoaded={(rows, fileName) =>
-              openRun({ rows, fileName, snapshot: null, savedId: null })
-            }
-          />
-        )}
-        {tab === "results" && (
-          <ResultsTab
-            config={activeConfig}
-            liveConfig={config}
-            run={run}
-            result={result}
-            month={month}
-            update={update}
-            onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
-            onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
-            goRun={() => setTab("run")}
-          />
-        )}
-        {tab === "history" && <HistoryTab initialRuns={initialRuns} onOpen={openRun} />}
-        {tab === "team" && <TeamTab config={config} update={update} />}
-        {tab === "rates" && <RatesTab config={config} update={update} />}
-        {tab === "map" && <MapTab config={config} update={update} />}
-      </main>
+      {sync === "err" && (
+        <div className="note bad savefail" role="alert">
+          <strong>That change was not saved.</strong> {syncMsg}{" "}
+          <button className="btn o" style={{ marginLeft: 8 }} onClick={() => flush()}>
+            Try again
+          </button>
+        </div>
+      )}
 
-      <input
-        type="file"
-        id="loadCfg"
-        accept=".json"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (!f) return;
-          const fr = new FileReader();
-          fr.onload = (ev) => {
-            try {
-              const j = JSON.parse(String(ev.target?.result));
-              if (!j.rates || !j.team) throw new Error("bad");
-              replaceConfig(j as Config);
-            } catch {
-              alert("That file is not a valid settings file.");
-            }
-          };
-          fr.readAsText(f);
-        }}
-      />
-    </>
+      <main>{children}</main>
+
+    </AppCtx.Provider>
   );
 }

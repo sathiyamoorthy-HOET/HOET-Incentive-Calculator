@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
+import Mark from "@/components/Mark";
 import { signIn, type AuthState } from "./actions";
 
 const initial: AuthState = { error: null };
@@ -13,7 +14,7 @@ export default function LoginForm() {
 
   return (
     <form className="box" action={action}>
-      <div className="brandmark">HO</div>
+      <Mark className="brandmark" label="House of EduTech" />
       <h1>HOET Incentive</h1>
       <p className="sub">Sign in to run the monthly incentive calculation.</p>
 

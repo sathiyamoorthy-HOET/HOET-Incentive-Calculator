@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { cats, inr, num, rateFor, round, totals } from "@/lib/calc";
 import { exportRun } from "@/lib/export";
-import { Computed, Config, NOTPAY, STATUS } from "@/lib/types";
+import { ActiveRun, Computed, Config, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
-import type { ActiveRun } from "./AppShell";
 
 export default function ResultsTab({
   config,
@@ -39,7 +39,10 @@ export default function ResultsTab({
       <section className="panel on">
         <h2>Results</h2>
         <p className="sub">Incentive is earned only on points above target.</p>
-        <div className="empty">Upload a report on the Run a month tab to see results.</div>
+        <div className="empty">
+          Nothing loaded. Upload a report on <Link href="/run">Run a month</Link>, or open a saved
+          one from <Link href="/history">History</Link>.
+        </div>
       </section>
     );
   }

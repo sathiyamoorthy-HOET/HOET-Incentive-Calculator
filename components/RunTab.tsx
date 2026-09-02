@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { parseReport } from "@/lib/parse";
-import { SourceRow } from "@/lib/types";
+import { ParsedSource, SourceRow } from "@/lib/types";
 
 export default function RunTab({
   onLoaded,
 }: {
-  onLoaded: (rows: SourceRow[], fileName: string) => void;
+  onLoaded: (rows: SourceRow[], fileName: string, source: ParsedSource) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export default function RunTab({
         setError(res.error);
         return;
       }
-      onLoaded(res.rows, f.name);
+      onLoaded(res.rows, f.name, res.source);
     };
     fr.onerror = () => {
       setBusy(false);

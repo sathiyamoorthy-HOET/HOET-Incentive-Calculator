@@ -38,10 +38,21 @@ export type Config = {
 /** One row as read out of the uploaded delivery report. */
 export type SourceRow = { raw: string; type: string | null; mins: number };
 
+/** What the parser made of the file, so the Results page can explain itself. */
+export type ParsedSource = {
+  sheet: string;
+  /** Every non-empty header on the sheet it read, in order. */
+  headers: string[];
+  /** The header it took the video type from, or null when there was none. */
+  typeColumn: string | null;
+};
+
 /** The report currently on screen, either just uploaded or opened from History. */
 export type ActiveRun = {
   rows: SourceRow[];
   fileName: string;
+  /** How the file was read. Absent for a run reopened from History. */
+  source?: ParsedSource;
   /** Set when viewing a saved run: prices it with the rate card of the day. */
   snapshot: Config | null;
   savedId: number | null;
@@ -96,4 +107,16 @@ export const STATUS: Record<RunStatus, [string, string]> = {
   under: ["a", "Below target"],
   blocked: ["r", "Work not priced"],
   none: ["n", "No work recorded"],
+};
+
+/** One row of the Access page: who is allowed in, and whether they can sign in. */
+export type AccessRow = {
+  email: string;
+  /** Free text captured when they were added, usually their name or role. */
+  note: string | null;
+  addedAt: string;
+  /** From their profile, so it reflects what they signed up as. */
+  name: string | null;
+  hasAccount: boolean;
+  isYou: boolean;
 };

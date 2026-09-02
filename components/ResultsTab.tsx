@@ -55,6 +55,11 @@ export default function ResultsTab({
   const affected = o.filter((r) => r.untyped > 0.05).sort((a, b) => b.untyped - a.untyped);
   const untypedTotal = round(result.untypedMins, 1);
   const readOnly = !!run.snapshot;
+  /* A whole run scoring zero is almost always this: the export had no column
+     naming the kind of video, so every minute is unpriced. Say it at the top,
+     with the columns the file did have, instead of leaving a zero to explain
+     itself. */
+  const noTypeColumn = !!run.source && run.source.typeColumn === null && untypedTotal > 0.05;
   const hasProblems =
     result.unmatched.length > 0 || result.unknownTypes.length > 0 || untypedTotal > 0.05;
 
@@ -90,6 +95,21 @@ export default function ResultsTab({
     <section className="panel on">
       <h2>Results</h2>
       <p className="sub">Incentive is earned only on points above target.</p>
+
+      {noTypeColumn && (
+        <div className="note bad">
+          <strong>This report has no video type column, so nothing can be priced.</strong> Every
+          minute in it is unpriced, which is why the points are zero. The sheet
+          {run.source?.sheet ? ' "' + run.source.sheet + '"' : ""} has these columns:{" "}
+          <span className="num" style={{ fontSize: 12.5 }}>
+            {run.source?.headers.join(" · ")}
+          </span>
+          . Add a column named <strong>Type</strong>, <strong>Video type</strong> or{" "}
+          <strong>Category</strong> to the export — anything whose name contains &ldquo;type&rdquo;
+          or &ldquo;category&rdquo; is read — then upload it again. The names in it are matched on
+          the Video types page.
+        </div>
+      )}
 
       {readOnly && (
         <div className="note">

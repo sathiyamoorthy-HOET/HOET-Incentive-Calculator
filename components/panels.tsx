@@ -22,8 +22,8 @@ export function RunPanel() {
   const router = useRouter();
   return (
     <RunTab
-      onLoaded={(rows, fileName) => {
-        setRun({ rows, fileName, snapshot: null, savedId: null });
+      onLoaded={(rows, fileName, source) => {
+        setRun({ rows, fileName, source, snapshot: null, savedId: null });
         router.push("/results");
       }}
     />

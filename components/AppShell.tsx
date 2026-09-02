@@ -28,6 +28,7 @@ const TABS = [
   ["/team", "Team"],
   ["/rate-card", "Rate card"],
   ["/video-types", "Video types"],
+  ["/admin", "Admin"],
 ] as const;
 
 type Sync = "idle" | "busy" | "ok" | "err";

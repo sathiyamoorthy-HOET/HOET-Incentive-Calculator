@@ -1,8 +1,11 @@
 import * as XLSX from "xlsx";
-import { SourceRow } from "./types";
+import { ParsedSource, SourceRow } from "./types";
 
 const NAME_H = ["assignee", "editor", "member", "name", "owner"];
-const TYPE_H = ["type", "project type", "video type", "category"];
+/* Substring matching means "type" already catches Video Type, Project Type and
+   Content Type. Nothing looser belongs here: "deliverable" looked tempting
+   until it matched "Deliverables (approved/total)" and priced work by "0/1". */
+const TYPE_H = ["type", "video type", "project type", "category"];
 const SEC_H = ["runtime in period (sec)", "duration (sec)", "runtime (sec)", "seconds"];
 const MIN_H = ["minutes", "runtime (min)", "duration (min)"];
 
@@ -21,7 +24,7 @@ function pick(hdrs: unknown[], cands: string[]): number {
 }
 
 export type ParseResult =
-  | { ok: true; rows: SourceRow[]; sheet: string }
+  | { ok: true; rows: SourceRow[]; source: ParsedSource }
   | { ok: false; error: string };
 
 /**
@@ -78,7 +81,20 @@ export function parseReport(data: ArrayBuffer): ParseResult {
   }
 
   if (!rows.length) return { ok: false, error: "That sheet has headers but no data rows." };
-  return { ok: true, rows, sheet: best.sn };
+
+  /* Index into the row as it is, and only drop the blanks for display: a gap
+     before the type column would otherwise shift the name off by one. */
+  const raw = ((best.aoa[0] || []) as unknown[]).map((h) => String(h ?? "").trim());
+
+  return {
+    ok: true,
+    rows,
+    source: {
+      sheet: best.sn,
+      headers: raw.filter(Boolean),
+      typeColumn: best.ti >= 0 ? raw[best.ti] || null : null,
+    },
+  };
 }
 
 export { XLSX };

@@ -24,3 +24,19 @@ export function supabaseEnv(): { url: string; key: string } | null {
 export const MISSING_ENV_MESSAGE =
   "This deployment is missing SUPABASE_URL and/or SUPABASE_PUBLISHABLE_KEY. " +
   "Set both in the hosting project's environment variables and redeploy.";
+
+/**
+ * The service-role key, used only to create and delete accounts on the Access
+ * page. It bypasses row-level security entirely, so it lives server-side, is
+ * read only by lib/supabase/admin.ts, and every action that reaches for it
+ * checks first that the caller is on the access list.
+ */
+export function serviceKey(): string | null {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+}
+
+export const MISSING_SERVICE_KEY_MESSAGE =
+  "Creating accounts needs SUPABASE_SERVICE_ROLE_KEY in the server environment. " +
+  "Copy it from Supabase → Project settings → API keys → service_role, add it to " +
+  ".env.local and to the hosting project's environment variables, then redeploy. " +
+  "Until then, accounts can still be created in Supabase → Authentication → Users.";

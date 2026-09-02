@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { MISSING_ENV_MESSAGE, supabaseEnv } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot", "/auth"];
 
 /**
  * Refreshes the Supabase session on every request and keeps signed-out users
@@ -55,7 +55,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && path === "/login") {
+  /* Someone following a recovery link is signed in but does not yet know
+     their password, so /auth/reset has to stay reachable while signed in. */
+  if (user && (path === "/login" || path === "/signup" || path === "/forgot")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

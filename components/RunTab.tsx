@@ -23,8 +23,8 @@ export default function RunTab({
     setBusy(true);
     setError(null);
     const fr = new FileReader();
-    fr.onload = (ev) => {
-      const res = parseReport(ev.target?.result as ArrayBuffer);
+    fr.onload = async (ev) => {
+      const res = await parseReport(ev.target?.result as ArrayBuffer);
       if (!res.ok) {
         setBusy(false);
         setError(res.error);

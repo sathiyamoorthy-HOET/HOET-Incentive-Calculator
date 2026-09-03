@@ -1,4 +1,6 @@
-import * as XLSX from "xlsx";
+/* Types only, so reading a report costs the half-megabyte of SheetJS at the
+   moment a file is dropped rather than when the page is opened. */
+import type * as XLSX from "xlsx";
 import { ParsedSource, SourceRow } from "./types";
 
 const NAME_H = ["assignee", "editor", "member", "name", "owner"];
@@ -74,17 +76,18 @@ function minutesOf(r: unknown[], si: number, mi: number): number {
  * project, no revisions — and says so, rather than quietly pricing every
  * video as a first-time pass.
  */
-export function parseReport(data: ArrayBuffer): ParseResult {
+export async function parseReport(data: ArrayBuffer): Promise<ParseResult> {
+  const xlsx = await import("xlsx");
   let wb: XLSX.WorkBook;
   try {
-    wb = XLSX.read(new Uint8Array(data), { type: "array" });
+    wb = xlsx.read(new Uint8Array(data), { type: "array" });
   } catch {
     return { ok: false, error: "That file could not be read. Export it again as .xlsx or .csv and retry." };
   }
 
   const sheets: Sheet[] = [];
   for (const name of wb.SheetNames) {
-    const aoa = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null });
+    const aoa = xlsx.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null });
     if (!aoa.length) continue;
     sheets.push({
       name,

@@ -40,155 +40,152 @@ export default function RatesTab({
       </p>
 
       <div className="split">
-        <div>
-        <EditCard
-          confirm
-          title="Points per minute"
-          hint="Rename a category here and the mapping follows it. Review is what reviewing a minute of this kind of video pays, whoever does it — the reviewer is the manager of the project, and reviewing your own edit earns nothing."
-          tools={
-            <button
-              className="btn o"
-              onClick={() =>
-                update((d) => {
-                  let n = "New video category";
-                  let k = 2;
-                  while (d.rates.some((r) => r.cat === n)) n = "New video category " + k++;
-                  d.rates.push({ cat: n, r: [5, 5.5, 5.75, 6], review: 0 });
-                })
-              }
-            >
-              Add video category
-            </button>
-          }
-        >
-          {(editing) => (
-            <div className="scroll">
-              <table className="tight">
-                <thead>
-                  <tr>
-                    <th>Video category</th>
-                    <th className="r" style={{ width: 62 }}>A rate</th>
-                    <th className="r" style={{ width: 52 }}>B +%</th>
-                    <th className="r" style={{ width: 52 }}>C +%</th>
-                    <th className="r" style={{ width: 52 }}>D +%</th>
-                    <th className="r" style={{ width: 46 }}>B</th>
-                    <th className="r" style={{ width: 46 }}>C</th>
-                    <th className="r" style={{ width: 46 }}>D</th>
-                    <th className="r" style={{ width: 56 }} title="Points per minute for reviewing this kind of video">
-                      Review
-                    </th>
-                    {editing && <th style={{ width: 28 }} />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {config.rates.map((r, i) => (
-                    <tr key={i}>
-                      <td>
-                        {editing ? (
-                          <input
-                            key={r.cat}
-                            defaultValue={r.cat}
-                            onBlur={(ev) => {
-                              const nu = ev.target.value.trim();
-                              const old = r.cat;
-                              if (nu === old) return;
-                              if (!nu || config.rates.some((x, j) => j !== i && x.cat === nu)) {
-                                ev.target.value = old;
-                                return;
-                              }
-                              update((d) => {
-                                d.rates[i].cat = nu;
-                                d.map.forEach((m) => { if (m[1] === old) m[1] = nu; });
-                              });
-                            }}
-                            onKeyDown={(ev) => {
-                              if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
-                            }}
-                          />
-                        ) : (
-                          r.cat
-                        )}
-                      </td>
+        <div className="stack">
+          <EditCard
+            confirm
+            title="Points per minute"
+            hint="Rename a category here and the mapping follows it. Review is what reviewing a minute of this kind of video pays, whoever does it — the reviewer is the manager of the project, and reviewing your own edit earns nothing."
+            tools={
+              <button
+                className="btn o"
+                onClick={() =>
+                  update((d) => {
+                    let n = "New video category";
+                    let k = 2;
+                    while (d.rates.some((r) => r.cat === n)) n = "New video category " + k++;
+                    d.rates.push({ cat: n, r: [5, 5.5, 5.75, 6], review: 0 });
+                  })
+                }
+              >
+                Add video category
+              </button>
+            }
+          >
+            {(editing) => (
+              <div className="scroll">
+                <table className="tight">
+                  <thead>
+                    <tr>
+                      <th>Video category</th>
+                      <th className="r" style={{ width: 62 }}>A rate</th>
+                      <th className="r" style={{ width: 52 }}>B +%</th>
+                      <th className="r" style={{ width: 52 }}>C +%</th>
+                      <th className="r" style={{ width: 52 }}>D +%</th>
+                      <th className="r" style={{ width: 46 }}>B</th>
+                      <th className="r" style={{ width: 46 }}>C</th>
+                      <th className="r" style={{ width: 46 }}>D</th>
+                      <th className="r" style={{ width: 56 }} title="Points per minute for reviewing this kind of video">
+                        Review
+                      </th>
+                      {editing && <th style={{ width: 28 }} />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {config.rates.map((r, i) => (
+                      <tr key={i}>
+                        <td>
+                          {editing ? (
+                            <input
+                              key={r.cat}
+                              defaultValue={r.cat}
+                              onBlur={(ev) => {
+                                const nu = ev.target.value.trim();
+                                const old = r.cat;
+                                if (nu === old) return;
+                                if (!nu || config.rates.some((x, j) => j !== i && x.cat === nu)) {
+                                  ev.target.value = old;
+                                  return;
+                                }
+                                update((d) => {
+                                  d.rates[i].cat = nu;
+                                  d.map.forEach((m) => { if (m[1] === old) m[1] = nu; });
+                                });
+                              }}
+                              onKeyDown={(ev) => {
+                                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
+                              }}
+                            />
+                          ) : (
+                            r.cat
+                          )}
+                        </td>
 
-                      <td className={editing ? "" : "r num"}>
-                        {editing ? (
-                          <NumInput
-                            value={r.r[0]}
-                            step="0.1"
-                            min="0"
-                            onCommit={(v) =>
-                              update((d) => {
-                                const nv = Math.max(0, v);
-                                const f = d.rates[i].r[0] ? nv / d.rates[i].r[0] : 0;
-                                d.rates[i].r = d.rates[i].r.map((x, j) =>
-                                  j === 0 ? nv : round(x * f, 4)
-                                );
-                              })
-                            }
-                          />
-                        ) : (
-                          round(r.r[0], 2)
-                        )}
-                      </td>
-                      {[1, 2, 3].map((s) => (
-                        <td key={s} className={editing ? "" : "r num"}>
+                        <td className={editing ? "" : "r num"}>
                           {editing ? (
                             <NumInput
-                              value={Math.round(upliftOf(r, s) * 100)}
-                              step="1"
+                              value={r.r[0]}
+                              step="0.1"
+                              min="0"
                               onCommit={(v) =>
                                 update((d) => {
-                                  d.rates[i].r[s] = round(d.rates[i].r[0] * (1 + v / 100), 4);
+                                  const nv = Math.max(0, v);
+                                  const f = d.rates[i].r[0] ? nv / d.rates[i].r[0] : 0;
+                                  d.rates[i].r = d.rates[i].r.map((x, j) =>
+                                    j === 0 ? nv : round(x * f, 4)
+                                  );
                                 })
                               }
                             />
                           ) : (
-                            Math.round(upliftOf(r, s) * 100) + "%"
+                            round(r.r[0], 2)
                           )}
                         </td>
-                      ))}
-                      {[1, 2, 3].map((s) => (
-                        <td key={"v" + s} className="r num" style={{ color: "var(--muted)" }}>
-                          {round(r.r[s], 2)}
-                        </td>
-                      ))}
+                        {[1, 2, 3].map((s) => (
+                          <td key={s} className={editing ? "" : "r num"}>
+                            {editing ? (
+                              <NumInput
+                                value={Math.round(upliftOf(r, s) * 100)}
+                                step="1"
+                                onCommit={(v) =>
+                                  update((d) => {
+                                    d.rates[i].r[s] = round(d.rates[i].r[0] * (1 + v / 100), 4);
+                                  })
+                                }
+                              />
+                            ) : (
+                              Math.round(upliftOf(r, s) * 100) + "%"
+                            )}
+                          </td>
+                        ))}
+                        {[1, 2, 3].map((s) => (
+                          <td key={"v" + s} className="r num" style={{ color: "var(--muted)" }}>
+                            {round(r.r[s], 2)}
+                          </td>
+                        ))}
 
-                      <td className={editing ? "" : "r num"}>
-                        {editing ? (
-                          <NumInput
-                            value={r.review ?? 0}
-                            step="0.5"
-                            min="0"
-                            onCommit={(v) =>
-                              update((d) => { d.rates[i].review = Math.max(0, v); })
-                            }
-                          />
-                        ) : (
-                          round(r.review ?? 0, 2)
+                        <td className={editing ? "" : "r num"}>
+                          {editing ? (
+                            <NumInput
+                              value={r.review ?? 0}
+                              step="0.5"
+                              min="0"
+                              onCommit={(v) =>
+                                update((d) => { d.rates[i].review = Math.max(0, v); })
+                              }
+                            />
+                          ) : (
+                            round(r.review ?? 0, 2)
+                          )}
+                        </td>
+
+                        {editing && (
+                          <td>
+                            <button
+                              className="x"
+                              aria-label={"Remove " + r.cat}
+                              onClick={() => removeCategory(i)}
+                            >
+                              ×
+                            </button>
+                          </td>
                         )}
-                      </td>
-
-                      {editing && (
-                        <td>
-                          <button
-                            className="x"
-                            aria-label={"Remove " + r.cat}
-                            onClick={() => removeCategory(i)}
-                          >
-                            ×
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </EditCard>
-        </div>
-
-        <aside className="stack">
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </EditCard>
           <EditCard
             confirm
             title="Revisions"
@@ -265,6 +262,53 @@ export default function RatesTab({
                         </td>
                       </tr>
                     )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </EditCard>
+        </div>
+
+        <aside className="stack">
+          <EditCard confirm title="Work patterns">
+            {(editing) => (
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Pattern</th>
+                      <th className="r" style={{ width: 120 }}>Standard days</th>
+                      <th className="r" style={{ width: 120 }}>Target points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {config.patterns.map((p, i) => (
+                      <tr key={p.name}>
+                        <td>{p.name}</td>
+                        <td className={editing ? "" : "r num"}>
+                          {editing ? (
+                            <NumInput
+                              value={p.days}
+                              step="0.1"
+                              onCommit={(v) => update((d) => { d.patterns[i].days = v; })}
+                            />
+                          ) : (
+                            p.days
+                          )}
+                        </td>
+                        <td className={editing ? "" : "r num"}>
+                          {editing ? (
+                            <NumInput
+                              value={p.target}
+                              step="10"
+                              onCommit={(v) => update((d) => { d.patterns[i].target = v; })}
+                            />
+                          ) : (
+                            p.target
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -415,50 +459,6 @@ export default function RatesTab({
                     : "No PIP threshold is set, so missing target does not trigger one."}
                 </p>
               </>
-            )}
-          </EditCard>
-          <EditCard confirm title="Work patterns">
-            {(editing) => (
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Pattern</th>
-                      <th className="r" style={{ width: 120 }}>Standard days</th>
-                      <th className="r" style={{ width: 120 }}>Target points</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {config.patterns.map((p, i) => (
-                      <tr key={p.name}>
-                        <td>{p.name}</td>
-                        <td className={editing ? "" : "r num"}>
-                          {editing ? (
-                            <NumInput
-                              value={p.days}
-                              step="0.1"
-                              onCommit={(v) => update((d) => { d.patterns[i].days = v; })}
-                            />
-                          ) : (
-                            p.days
-                          )}
-                        </td>
-                        <td className={editing ? "" : "r num"}>
-                          {editing ? (
-                            <NumInput
-                              value={p.target}
-                              step="10"
-                              onCommit={(v) => update((d) => { d.patterns[i].target = v; })}
-                            />
-                          ) : (
-                            p.target
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             )}
           </EditCard>
         </aside>

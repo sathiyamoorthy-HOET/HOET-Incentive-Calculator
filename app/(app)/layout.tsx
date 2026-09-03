@@ -12,6 +12,13 @@ export const dynamic = "force-dynamic";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
+
+  /* Asked for before the session is checked rather than after it, because the
+     two do not depend on each other and this one is the round trip. The
+     database refuses it to anyone not signed in, and an unsigned caller is
+     redirected below before the answer is ever read. */
+  const configPromise = supabase.rpc("get_config");
+
   /* Verified in process against the project's published signing keys, so
      rendering a page costs no round trip to the Auth server. The proxy has
      already refreshed the token by the time this runs. */
@@ -32,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
   if (!claims) redirect("/login");
 
-  const { data: config, error } = await supabase.rpc("get_config");
+  const { data: config, error } = await configPromise;
 
   if (error || !config) {
     return (

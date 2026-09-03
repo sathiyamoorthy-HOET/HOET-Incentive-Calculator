@@ -1,10 +1,17 @@
-import * as XLSX from "xlsx";
 import { daysOf, payBandsOf, round, targetOf, totals } from "./calc";
 import { Config, EditorResult, EXP, STATUS } from "./types";
 import { monthName } from "./months";
 import type { EditorMonth } from "@/app/actions";
 
-export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
+/**
+ * SheetJS is half a megabyte, and nobody pays for it until they ask for a
+ * spreadsheet: it is fetched when an export button is pressed, not when the
+ * page that carries the button is opened.
+ */
+const sheets = () => import("xlsx");
+
+export async function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
+  const XLSX = await sheets();
   const mo = monthLabel || "Month";
   const aoa: (string | number)[][] = [
     [
@@ -98,7 +105,8 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   XLSX.writeFile(wb, "HOET_Incentive_" + mo.replace(/[^\w]+/g, "_") + ".xlsx");
 }
 
-export function exportTeam(c: Config) {
+export async function exportTeam(c: Config) {
+  const XLSX = await sheets();
   const aoa: (string | number)[][] = [
     ["Editor", "Slab", "Experience", "Work pattern", "Days available", "Target points", "Reviews"],
   ];
@@ -118,7 +126,8 @@ export function exportTeam(c: Config) {
  * workbook the monthly run exports, because this is the sheet that gets
  * pasted into a review or a payout query.
  */
-export function exportEditor(name: string, months: EditorMonth[], cats: string[]) {
+export async function exportEditor(name: string, months: EditorMonth[], cats: string[]) {
+  const XLSX = await sheets();
   const aoa: (string | number)[][] = [
     [
       "Month", "Slab", "Work pattern", "Days available",

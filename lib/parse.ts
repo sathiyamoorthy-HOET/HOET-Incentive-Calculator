@@ -13,6 +13,10 @@ const VER_H = ["version", "revision no", "revisions"];
 const PERIOD_H = ["uploaded in period", "upload in period"];
 const STATUS_H = ["status", "deliverable status"];
 const MGR_H = ["manager", "reviewer", "reviewed by"];
+/* A deliverable's number within its project. Orbitova exports it as "#", and
+   with the project code it is the only stable name a video has: the identity
+   that lets a cut uploaded in August be recognised again in September. */
+const DID_H = ["deliverable #", "deliverable no", "deliverable number", "#"];
 
 /**
  * A deliverable whose status says somebody has actually looked at it. Work
@@ -142,6 +146,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
   const pi = pick(d.head, PERIOD_H);
   const sti = pick(d.head, STATUS_H);
   const api = pick(d.head, ["approved by", "approver"]);
+  const di = pick(d.head, DID_H);
 
   /* Editor, reviewer and fallback type, by project code. */
   const editor = new Map<string, string>();
@@ -207,10 +212,24 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       rev: Math.max(0, Math.round(version) - 1),
       reviewer: reviewer.get(code) || null,
       reviewed: sti >= 0 ? isReviewed(status) : false,
+      code: code || null,
+      did: di >= 0 ? cell(r, di) || null : null,
     });
   }
 
   if (!rows.length) return null;
+
+  /* Whether each deliverable can be told apart from its siblings, and so
+     recognised again in a later month. Project code plus deliverable number
+     where the export numbers them; failing that, project code plus the exact
+     duration in seconds, which collides far more often. Rows sharing a key
+     are counted, because those are the ones a paid-once rule could confuse. */
+  const identity = new Map<string, number>();
+  for (const r of rows) {
+    const key = (r.code || "") + "#" + (r.did || "@" + Math.round(r.mins * 60));
+    identity.set(key, (identity.get(key) || 0) + 1);
+  }
+  const ambiguous = [...identity.values()].filter((n) => n > 1).reduce((a, n) => a + n, 0);
 
   return {
     ok: true,
@@ -226,6 +245,10 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       splitApprovals: [...approvers.entries()]
         .filter(([, set]) => set.size > 1)
         .map(([code]) => code),
+      codeColumn: ci >= 0 ? d.head[ci] || null : null,
+      idColumn: di >= 0 ? d.head[di] || null : null,
+      deliverables: rows.length,
+      ambiguous,
     },
   };
 }
@@ -285,6 +308,10 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       orphans: 0,
       statusColumn: null,
       splitApprovals: [],
+      codeColumn: null,
+      idColumn: null,
+      deliverables: 0,
+      ambiguous: 0,
     },
   };
 }

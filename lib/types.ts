@@ -30,6 +30,36 @@ export type Editor = {
   target?: number | null;
 };
 
+/**
+ * What has already been paid for one deliverable, keyed by project code and
+ * deliverable number. Orbitova reports a revised cut again in the month it was
+ * re-uploaded — by design, since it measures upload volume — so this is what
+ * stops one video being paid for in two months.
+ */
+export type LedgerEntry = {
+  /** The highest version of it that has been settled. */
+  version: number;
+  /** What it earned the first time, the basis every later deduction is a % of. */
+  gross: number;
+  /** How much of the revision ladder has already been charged, in percent. */
+  chargedPct: number;
+};
+
+export type Ledger = Record<string, LedgerEntry>;
+
+/** How one row was settled against that ledger. */
+export type Settlement =
+  /** Not seen before: price it in full, charging the ladder for its own rounds. */
+  | { mode: "full" }
+  /**
+   * Paid for in an earlier month and back at a higher version. The minutes are
+   * not paid again; the ladder is charged against what it earned the first
+   * time, so the rework costs points in the month it happened.
+   */
+  | { mode: "deduct"; gross: number; pct: number }
+  /** Paid for already and no further along, so there is nothing to settle. */
+  | { mode: "skip" };
+
 /** A source video type paired with the payable category it maps to. */
 export type TypeMap = [string, string];
 
@@ -61,6 +91,23 @@ export type SourceRow = {
   rev?: number;
   /** Who reviews this video: the manager of the project it belongs to. */
   reviewer?: string | null;
+  /**
+   * The project this deliverable belongs to, from the report's project code.
+   * Kept so a deliverable can be recognised again in a later month: a video
+   * revised across a month boundary must not be paid for twice.
+   */
+  code?: string | null;
+  /**
+   * This deliverable's number within its project ("#" in the export). With the
+   * project code it names one video for good, across months.
+   */
+  did?: string | null;
+  /**
+   * How this row was settled against everything already paid for that
+   * deliverable. Written on when the run is saved, so reopening it reproduces
+   * the payout that was signed off even though the ledger has moved on.
+   */
+  settle?: Settlement;
   /** Whether a review has actually happened, from the deliverable's status. */
   reviewed?: boolean;
 };
@@ -89,6 +136,20 @@ export type ParsedSource = {
    * points go to the manager, so these are the ones where that is a guess.
    */
   splitApprovals: string[];
+  /** The header the project code was read from, or null when there was none. */
+  codeColumn: string | null;
+  /** The header a deliverable's own number was read from, null when absent. */
+  idColumn: string | null;
+  /** How many deliverable rows were read, before any pricing. */
+  deliverables: number;
+  /**
+   * Deliverables that share a project and an exact duration to the second.
+   * With no deliverable id in the export, a project code and a duration are
+   * the only identity a video has, so these are the rows that identity cannot
+   * tell apart — and therefore the rows that a paid-once rule would risk
+   * mistaking for each other.
+   */
+  ambiguous: number;
 };
 
 /** The report currently on screen, either just uploaded or opened from History. */
@@ -128,6 +189,10 @@ export type EditorResult = {
   isReviewer: boolean;
   /** Points taken off for revisions, before target and incentive. */
   deducted: number;
+  /** Deliverables paid for in an earlier month, so not paid for again here. */
+  carried: number;
+  /** Of `deducted`, the part charged for revising those earlier deliverables. */
+  carryDed: number;
   pts: number;
   target: number;
   surplus: number;

@@ -7,7 +7,12 @@ import { ParsedSource, SourceRow } from "@/lib/types";
 export default function RunTab({
   onLoaded,
 }: {
-  onLoaded: (rows: SourceRow[], fileName: string, source: ParsedSource) => void;
+  /** Returns an error to show, or nothing when the report was accepted. */
+  onLoaded: (
+    rows: SourceRow[],
+    fileName: string,
+    source: ParsedSource
+  ) => void | Promise<string | null | void>;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,12 +25,17 @@ export default function RunTab({
     const fr = new FileReader();
     fr.onload = (ev) => {
       const res = parseReport(ev.target?.result as ArrayBuffer);
-      setBusy(false);
       if (!res.ok) {
+        setBusy(false);
         setError(res.error);
         return;
       }
-      onLoaded(res.rows, f.name, res.source);
+      /* Stay busy while the report is settled against what has already been
+         paid: the figures on the next page depend on that answer. */
+      Promise.resolve(onLoaded(res.rows, f.name, res.source)).then((err) => {
+        setBusy(false);
+        if (err) setError(err);
+      });
     };
     fr.onerror = () => {
       setBusy(false);

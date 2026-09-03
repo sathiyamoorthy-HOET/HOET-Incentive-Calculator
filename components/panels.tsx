@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { compute } from "@/lib/calc";
+import { monthName, parseMonth } from "@/lib/months";
 import { ActiveRun, Config, SourceRow } from "@/lib/types";
+import { settleUpload } from "@/app/actions";
 import { useApp } from "./AppShell";
 import RunTab from "./RunTab";
 import ResultsTab from "./ResultsTab";
@@ -18,13 +20,27 @@ import MapTab from "./MapTab";
  */
 
 export function RunPanel() {
-  const { setRun } = useApp();
+  const { config, month, setMonth, setRun } = useApp();
   const router = useRouter();
   return (
     <RunTab
-      onLoaded={(rows, fileName, source) => {
-        setRun({ rows, fileName, source, snapshot: null, savedId: null });
+      onLoaded={async (rows, fileName, source) => {
+        /* The report's file name carries the period it covers, so fill the
+           month from it rather than leaving a run unlabelled. Only when the
+           box is empty: a month someone typed is never overwritten. */
+        if (!month.trim()) {
+          const m = parseMonth(fileName);
+          if (m) setMonth(monthName(m));
+        }
+
+        /* Settle before showing any figures. A cut already paid for in an
+           earlier month must not appear on Results as money owed. */
+        const settled = await settleUpload(config, rows);
+        if (!settled.ok) return settled.error;
+
+        setRun({ rows: settled.rows, fileName, source, snapshot: null, savedId: null });
         router.push("/results");
+        return null;
       }}
     />
   );

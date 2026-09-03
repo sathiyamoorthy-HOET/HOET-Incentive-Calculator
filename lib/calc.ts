@@ -7,7 +7,9 @@ import {
   NOTPAY,
   Pattern,
   RateRow,
+  Ledger,
   RunStatus,
+  Settlement,
   Slab,
   SLABS,
   SourceRow,
@@ -139,6 +141,96 @@ export function matchEditor(c: Config, raw: string): { e: Editor | null; score: 
    Points are minutes x the per-minute rate for the editor's slab. Incentive is
    paid only on points above target, so surplus is floored at zero. */
 
+/**
+ * The name one video keeps for good: its project code and its number within
+ * that project. Null when the report gives neither, in which case the video
+ * cannot be recognised in a later month and is priced as first-seen.
+ */
+export function deliverableKey(r: SourceRow): string | null {
+  if (!r.code || !r.did) return null;
+  return r.code + "#" + r.did;
+}
+
+/** The version of a deliverable a row represents. Version 1 means no revisions. */
+const versionOf = (r: SourceRow) => Math.max(1, Math.round((r.rev ?? 0) + 1));
+
+/**
+ * Decides, for every row, whether it is new work or a cut that has already
+ * been paid for, and writes that decision onto the row.
+ *
+ * This is the only part of pricing that depends on other months, so it is kept
+ * out of `compute`: settle once when a report is read, store the answers with
+ * the run, and `compute` stays a pure function of the rows and the rate card.
+ * A run reopened from History therefore reproduces exactly, however much the
+ * ledger has moved on since.
+ */
+export function settleRows(c: Config, rows: SourceRow[], ledger: Ledger): SourceRow[] {
+  /* A copy, advanced as we go, so a deliverable repeated inside one report
+     cannot be paid for twice either. */
+  const seen: Ledger = { ...ledger };
+
+  return rows.map((r) => {
+    const key = deliverableKey(r);
+    if (!key) return { ...r, settle: { mode: "full" } as Settlement };
+
+    const version = versionOf(r);
+    const pctNow = penaltyOf(c, version - 1) * 100;
+    const prior = seen[key];
+
+    if (!prior) {
+      /* First sight. What it earns now is the basis for any later deduction,
+         so it is worked out here rather than left to compute. */
+      const m = matchEditor(c, r.raw);
+      const cat = catOf(c, r.type);
+      const gross =
+        m.e && m.score >= MATCH_THRESHOLD && cat && cat !== NOTPAY
+          ? r.mins * rateFor(c, cat, m.e.slab)
+          : 0;
+      seen[key] = { version, gross, chargedPct: pctNow };
+      return { ...r, settle: { mode: "full" } as Settlement };
+    }
+
+    /* Seen before and no further along: nothing new was delivered. */
+    if (version <= prior.version) return { ...r, settle: { mode: "skip" } as Settlement };
+
+    /* The ladder is read by round count, not summed, so a video already
+       charged 5% at two rounds owes only the difference when it reaches the
+       10% rung — never 15%. */
+    const owed = round(pctNow - prior.chargedPct, 4);
+    seen[key] = { version, gross: prior.gross, chargedPct: Math.max(pctNow, prior.chargedPct) };
+    if (owed <= 0 || prior.gross <= 0) return { ...r, settle: { mode: "skip" } as Settlement };
+    return { ...r, settle: { mode: "deduct", gross: prior.gross, pct: owed } as Settlement };
+  });
+}
+
+/** What a settled report leaves in the ledger, ready for the next month. */
+export function ledgerAfter(c: Config, rows: SourceRow[], ledger: Ledger): Ledger {
+  const next: Ledger = { ...ledger };
+  for (const r of settleRows(c, rows, ledger)) {
+    const key = deliverableKey(r);
+    if (!key) continue;
+    const version = versionOf(r);
+    const pctNow = penaltyOf(c, version - 1) * 100;
+    const prior = next[key];
+    if (!prior) {
+      const m = matchEditor(c, r.raw);
+      const cat = catOf(c, r.type);
+      const gross =
+        m.e && m.score >= MATCH_THRESHOLD && cat && cat !== NOTPAY
+          ? r.mins * rateFor(c, cat, m.e.slab)
+          : 0;
+      next[key] = { version, gross, chargedPct: pctNow };
+    } else if (version > prior.version) {
+      next[key] = {
+        version,
+        gross: prior.gross,
+        chargedPct: Math.max(pctNow, prior.chargedPct),
+      };
+    }
+  }
+  return next;
+}
+
 export function compute(c: Config, rows: SourceRow[]): Computed {
   type Acc = {
     mins: number;
@@ -150,6 +242,8 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     revised: number;
     rounds: number;
     deducted: number;
+    carried: number;
+    carryDed: number;
     revByCat: Record<string, number>;
     reviewMins: number;
     reviewPts: number;
@@ -162,7 +256,8 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
 
   const blank = (): Acc => ({
     mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
-    revised: 0, rounds: 0, deducted: 0, revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
+    revised: 0, rounds: 0, deducted: 0, carried: 0, carryDed: 0,
+    revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
   });
   const accFor = (name: string): Acc => {
     if (!per.has(name)) per.set(name, blank());
@@ -210,6 +305,31 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     }
 
     const rec = accFor(m.e.name);
+
+    /* Settled against earlier months before anything is credited. A cut that
+       was already paid for adds no minutes here, whatever its duration says:
+       Orbitova reports it again because it was re-uploaded, not because more
+       video was made. Reviewing is credited above and deliberately left
+       alone — looking at a revised cut is a fresh review either way. */
+    const settle: Settlement = r.settle ?? { mode: "full" };
+    if (settle.mode === "skip") continue;
+
+    if (settle.mode === "deduct") {
+      const cut = round(settle.gross * (settle.pct / 100), 4);
+      const rounds = Math.max(0, Math.round(r.rev ?? 0));
+      rec.pts -= cut;
+      rec.deducted += cut;
+      rec.carried += 1;
+      rec.carryDed += cut;
+      rec.revised += 1;
+      rec.rounds += rounds;
+      const back = catOf(c, r.type);
+      if (cut > 0 && back && back !== NOTPAY) {
+        rec.dedByCat[back] = (rec.dedByCat[back] || 0) + cut;
+      }
+      continue;
+    }
+
     rec.mins += r.mins;
 
     const raw = r.type && String(r.type).trim() ? String(r.type).trim() : null;
@@ -245,7 +365,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       const rec =
         per.get(e.name) || {
           mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
-          revised: 0, rounds: 0, deducted: 0,
+          revised: 0, rounds: 0, deducted: 0, carried: 0, carryDed: 0,
           revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
         };
       const target = targetOf(c, e);
@@ -271,6 +391,8 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         revised: rec.revised,
         rounds: rec.rounds,
         deducted: round(rec.deducted, 1),
+      carried: rec.carried,
+      carryDed: round(rec.carryDed, 1),
         revByCat: rec.revByCat,
         reviewMins: round(rec.reviewMins, 1),
         reviewPts: round(rec.reviewPts, 1),

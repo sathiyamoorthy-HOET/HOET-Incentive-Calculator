@@ -62,6 +62,10 @@ export default function ResultsTab({
   const noTypeColumn = !!run.source && run.source.typeColumn === null && untypedTotal > 0.05;
   /* Two ways a report can be short of what the rate card now prices on. */
   const noVersions = !!run.source && run.source.mode === "projects";
+  /* Deliverables this report re-reports because they were re-uploaded, and the
+     points charged for having revised them. */
+  const carried = result.out.reduce((a, r) => a + r.carried, 0);
+  const carryDed = result.out.reduce((a, r) => a + r.carryDed, 0);
   const orphans = run.source?.orphans ?? 0;
   const splitApprovals = run.source?.splitApprovals ?? [];
   const hasProblems =
@@ -122,6 +126,38 @@ export default function ResultsTab({
           {run.source?.sheet ? ' "' + run.source.sheet + '"' : " the sheet"}, which carries no
           version column, so every video is priced as a first-pass approval. A report with a
           deliverables sheet prices each video on its own and charges the ladder on the rate card.
+        </div>
+      )}
+
+      {carried > 0 && (
+        <div className="note">
+          <strong>
+            {carried} {carried === 1 ? "video was" : "videos were"} already paid for in an earlier
+            month, so {carried === 1 ? "it is" : "they are"} not paid for again here.
+          </strong>{" "}
+          Orbitova reports a revised cut in the month it was re-uploaded as well as the month it
+          was first delivered — its own Methodology sheet calls that figure upload volume, not
+          finished length — so the runtime in this report counts {carried === 1 ? "it" : "them"}{" "}
+          twice.{" "}
+          {carryDed > 0.05
+            ? round(carryDed, 1) +
+              " points were deducted instead, charged against what those videos earned first time round, because the revision happened this month."
+            : "No deduction was due on top of that."}
+        </div>
+      )}
+
+      {!!run.source && run.source.ambiguous > 0 && (
+        <div className="note bad">
+          <strong>
+            {run.source.ambiguous} of {run.source.deliverables} deliverables in this report cannot
+            be told apart.
+          </strong>{" "}
+          A video is recognised by its project code
+          {run.source.idColumn ? ' and its "' + run.source.idColumn + '" number' : ", and this export gives it no number of its own"}
+          , which is what stops the same cut being paid for twice when it is revised in a later
+          month. These rows share an identity, so that check cannot see them as separate videos.
+          Ask for the deliverable number to be included in the export before relying on the
+          paid-once rule.
         </div>
       )}
 

@@ -349,3 +349,24 @@ tr.det td{background:var(--bg-2);padding:0}
 .pw-eye:hover{color:var(--fg);background:var(--t-05)}
 .auth .btn{width:100%;margin-top:20px;padding:10px}
 .brandmark{width:32px;height:32px;display:block;margin-bottom:18px;color:var(--fg)}
+
+/* ------------------------------------------------ accountability grid
+   Many months means horizontal scroll, so the editor's name stays put. */
+table.grid th:first-child,table.grid td:first-child{
+  position:sticky;left:0;background:var(--card);white-space:nowrap;
+}
+table.grid thead th:first-child{z-index:2}
+table.grid tbody td:first-child,table.grid tfoot td:first-child{z-index:1}
+table.grid tbody tr:hover td:first-child{background:var(--card-2)}
+table.grid tfoot td:first-child{background:var(--card)}
+table.grid td.cell{
+  text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+table.grid thead th a{text-decoration:none}
+table.grid thead th a:hover{color:var(--fg)}
+.muted-2{color:var(--muted-2)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle}
+.dot.t{background:var(--emerald)}
+.dot.a{background:var(--amber)}
+.dot.r{background:var(--rose)}
+.dot.n{background:var(--muted-2)}

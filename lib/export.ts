@@ -1,6 +1,8 @@
 import * as XLSX from "xlsx";
 import { daysOf, round, targetOf, totals } from "./calc";
 import { Config, EditorResult, EXP, STATUS } from "./types";
+import { monthName } from "./months";
+import type { EditorMonth } from "@/app/actions";
 
 export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   const mo = monthLabel || "Month";
@@ -9,6 +11,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
       "Editor", "Slab", "Experience", "Work pattern", "Days available",
       "Minutes delivered", "Minutes with no type", "Minutes not payable",
       "Videos revised", "Revision rounds", "Points off for revisions",
+      "Paid in an earlier month", "Points off for those revisions",
       "Videos reviewed", "Minutes reviewed", "Review points",
       "Points earned", "Target points", "Points above target",
       "Incentive (INR)", "Status",
@@ -18,6 +21,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
     aoa.push([
       r.name, r.slab, r.exp, r.pattern, r.days, r.mins, r.untyped, r.notPay,
       r.revised, r.rounds, round(r.deducted, 1),
+      r.carried, round(r.carryDed, 1),
       r.reviewed, r.reviewMins, round(r.reviewPts, 1),
       round(r.pts, 1), r.target, r.surplus, r.incentive, STATUS[r.status][1],
     ])
@@ -28,6 +32,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   aoa.push([
     "TOTAL", "", "", "", "", round(t.m, 1), "", "",
     out.reduce((a, r) => a + r.revised, 0), out.reduce((a, r) => a + r.rounds, 0), round(t.d, 1),
+    out.reduce((a, r) => a + r.carried, 0), round(out.reduce((a, r) => a + r.carryDed, 0), 1),
     out.reduce((a, r) => a + r.reviewed, 0), round(t.rm, 1), round(t.rp, 1),
     round(t.p, 1), Math.round(t.t), round(t.s, 1), Math.round(t.i), "",
   ]);
@@ -37,6 +42,7 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   ws["!cols"] = [
     { wch: 26 }, { wch: 6 }, { wch: 11 }, { wch: 15 }, { wch: 8 }, { wch: 10 },
     { wch: 11 }, { wch: 11 }, { wch: 8 }, { wch: 9 }, { wch: 12 },
+    { wch: 13 }, { wch: 14 },
     { wch: 9 }, { wch: 10 }, { wch: 9 },
     { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 17 },
   ];
@@ -81,4 +87,51 @@ export function exportTeam(c: Config) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Team");
   XLSX.writeFile(wb, "HOET_Incentive_team_list.xlsx");
+}
+
+/**
+ * One editor's own history, month by month. A flat CSV rather than the
+ * workbook the monthly run exports, because this is the sheet that gets
+ * pasted into a review or a payout query.
+ */
+export function exportEditor(name: string, months: EditorMonth[], cats: string[]) {
+  const aoa: (string | number)[][] = [
+    [
+      "Month", "Slab", "Work pattern", "Days available",
+      "Minutes delivered", "Minutes with no type", "Minutes not payable",
+      "Points earned", "Target points", "Points above target",
+      "Incentive (INR)", "Status",
+      "Videos revised", "Revision rounds", "Points off for revisions",
+      "Paid in an earlier month", "Videos reviewed", "Review points",
+      ...cats.map((c) => c + " (min)"),
+    ],
+  ];
+
+  months.forEach((m) =>
+    aoa.push([
+      monthName(m.month), m.slab, m.pattern || "", m.days ?? "",
+      round(m.minutes, 1), round(m.untyped, 1), round(m.notPay, 1),
+      round(m.points, 1), Math.round(m.target), round(m.surplus, 1),
+      Math.round(m.incentive), STATUS[m.status][1],
+      m.revised, m.rounds, round(m.deducted, 1),
+      m.carried, m.reviewed, round(m.reviewPts, 1),
+      ...cats.map((c) => round(m.byCat[c] || 0, 1)),
+    ])
+  );
+
+  const sum = (f: (m: EditorMonth) => number) => months.reduce((a, m) => a + f(m), 0);
+  aoa.push([]);
+  aoa.push([
+    "TOTAL", "", "", "",
+    round(sum((m) => m.minutes), 1), round(sum((m) => m.untyped), 1), round(sum((m) => m.notPay), 1),
+    round(sum((m) => m.points), 1), Math.round(sum((m) => m.target)), round(sum((m) => m.surplus), 1),
+    Math.round(sum((m) => m.incentive)), "",
+    sum((m) => m.revised), sum((m) => m.rounds), round(sum((m) => m.deducted), 1),
+    sum((m) => m.carried), sum((m) => m.reviewed), round(sum((m) => m.reviewPts), 1),
+    ...cats.map((c) => round(sum((m) => m.byCat[c] || 0), 1)),
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "History");
+  XLSX.writeFile(wb, "HOET_" + name.replace(/[^\w]+/g, "_") + "_history.csv");
 }

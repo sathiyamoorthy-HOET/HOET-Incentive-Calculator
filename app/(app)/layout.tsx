@@ -51,9 +51,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const label =
     (claims.user_metadata?.full_name as string | undefined) || claims.email || "Signed in";
 
-  /* The revision ladder arrives only once its migration has been applied. */
+  /* The revision ladder and the payout ladder each arrive only once their own
+     migration has been applied; until then the flat rate is what pays. */
   const shared = config as Config;
   shared.revPen = shared.revPen ?? [];
+  shared.payBands = shared.payBands ?? [];
+  shared.pipMonths = shared.pipMonths ?? 3;
 
   return (
     <AppShell initialConfig={shared} userLabel={label}>

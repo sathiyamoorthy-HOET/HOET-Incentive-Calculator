@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { daysOf, round, targetOf, totals } from "./calc";
+import { daysOf, payBandsOf, round, targetOf, totals } from "./calc";
 import { Config, EditorResult, EXP, STATUS } from "./types";
 import { monthName } from "./months";
 import type { EditorMonth } from "@/app/actions";
@@ -52,8 +52,32 @@ export function exportRun(monthLabel: string, out: EditorResult[], c: Config) {
   c.rates.forEach((r) => rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3], r.review ?? 0]));
   rc.push([]);
   rc.push(["Points per working day", c.ppd]);
-  rc.push(["Incentive per point above target", c.rate]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
+
+  /* The ladder, rung by rung. Each rung pays only for the points inside it,
+     so the sheet says which points those are for every work pattern. */
+  const bands = payBandsOf(c);
+  rc.push([]);
+  rc.push(["Points above target", "₹ per point", ...c.patterns.map((p) => p.name)]);
+  bands.forEach((b, i) => {
+    const to = i + 1 < bands.length ? bands[i + 1].from : null;
+    rc.push([
+      to === null ? "+" + b.from + " and above" : "+" + b.from + " to +" + to,
+      b.rate,
+      ...c.patterns.map((p) =>
+        to === null
+          ? Math.round(p.target + b.from) + "+"
+          : Math.round(p.target + b.from) + "-" + Math.round(p.target + to)
+      ),
+    ]);
+  });
+  if (c.pipMonths > 0) {
+    rc.push([]);
+    rc.push([
+      "Performance improvement plan",
+      c.pipMonths + " months below target in a row",
+    ]);
+  }
   const ladder = c.revPen || [];
   if (ladder.length) {
     rc.push([]);

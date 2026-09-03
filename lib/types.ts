@@ -63,9 +63,43 @@ export type Settlement =
 /** A source video type paired with the payable category it maps to. */
 export type TypeMap = [string, string];
 
+/**
+ * One rung of the incentive ladder. `from` is how far above target the points
+ * are, not an absolute score, so one ladder reads the same for every target:
+ * a 5-day office editor on 650 and a 6-day WFH editor on 730 each start their
+ * first rung at their own target. Only the points inside a rung are paid at
+ * its rate, so 70 points clear of target pays the first 60 at the first rate
+ * and the last 10 at the second.
+ */
+export type PayBand = { from: number; rate: number };
+
+/** One rung of the ladder as it applies to a particular surplus. */
+export type PayPart = {
+  from: number;
+  /** Where the rung ends, or null for the last one, which has no ceiling. */
+  to: number | null;
+  rate: number;
+  /** How many of the surplus points fall inside this rung. */
+  pts: number;
+  amount: number;
+};
+
 export type Config = {
   ppd: number;
+  /**
+   * The flat rupees-per-point the ladder replaced. Kept because runs saved
+   * before the ladder existed were priced with it, and reopening one from
+   * History has to reproduce the payout that was signed off.
+   */
   rate: number;
+  /** What points above target are worth, in rungs. See {@link PayBand}. */
+  payBands: PayBand[];
+  /**
+   * How many months in a row below target put an editor on a performance
+   * improvement plan. Stated on the rate card so the rule is written down
+   * next to the target it is measured against.
+   */
+  pipMonths: number;
   /**
    * What a revision costs, as a percentage of that video's points, indexed by
    * how many rounds it took: [0] is one revision, [1] is two, and so on. A

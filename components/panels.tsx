@@ -19,9 +19,31 @@ import MapTab from "./MapTab";
  * held by AppShell.
  */
 
+/**
+ * Uploading a report and reading what it paid are one page, because they are
+ * one job: the upload has no result to show, and the result has nothing to say
+ * until a report is loaded. The uploader stands in until there is a run, and
+ * "Run another report" puts it back.
+ */
 export function RunPanel() {
-  const { config, month, setMonth, setRun } = useApp();
-  const router = useRouter();
+  const { config, activeConfig, run, result, month, setMonth, update, setRun } = useApp();
+
+  if (run) {
+    return (
+      <ResultsTab
+        config={activeConfig}
+        liveConfig={config}
+        run={run}
+        result={result}
+        month={month}
+        update={update}
+        onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
+        onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
+        goRun={() => setRun(null)}
+      />
+    );
+  }
+
   return (
     <RunTab
       onLoaded={async (rows, fileName, source) => {
@@ -39,27 +61,8 @@ export function RunPanel() {
         if (!settled.ok) return settled.error;
 
         setRun({ rows: settled.rows, fileName, source, snapshot: null, savedId: null });
-        router.push("/results");
         return null;
       }}
-    />
-  );
-}
-
-export function ResultsPanel() {
-  const { config, activeConfig, run, result, month, update, setRun } = useApp();
-  const router = useRouter();
-  return (
-    <ResultsTab
-      config={activeConfig}
-      liveConfig={config}
-      run={run}
-      result={result}
-      month={month}
-      update={update}
-      onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
-      onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
-      goRun={() => router.push("/run")}
     />
   );
 }
@@ -102,10 +105,13 @@ export function SavedRunPanel({
       onRerunLive={() => {
         setMonth(monthLabel);
         setRun({ rows, fileName, snapshot: null, savedId: null });
-        router.push("/results");
+        router.push("/run");
       }}
       onSaved={() => {}}
-      goRun={() => router.push("/run")}
+      goRun={() => {
+        setRun(null);
+        router.push("/run");
+      }}
     />
   );
 }

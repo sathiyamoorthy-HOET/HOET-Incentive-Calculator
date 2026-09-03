@@ -12,10 +12,10 @@ export default function RatesTab({
   config: Config;
   update: (fn: (draft: Config) => void) => void;
 }) {
-  /* Dropping a type is the one change here that cannot be typed back in: the
-     mapping rows that pointed at it become unpayable. Always ask, and say how
-     many of them there are. */
-  function removeType(i: number) {
+  /* Dropping a category is the one change here that cannot be typed back in:
+     the report's video types that pointed at it become unpayable. Always ask,
+     and say how many of them there are. */
+  function removeCategory(i: number) {
     const cat = config.rates[i].cat;
     const used = config.map.filter((m) => m[1] === cat).length;
     const consequence = used
@@ -29,6 +29,7 @@ export default function RatesTab({
   }
 
   const ladder = config.revPen ?? [];
+  const bands = config.payBands ?? [];
 
   return (
     <section className="panel on">
@@ -41,41 +42,42 @@ export default function RatesTab({
       <div className="split">
         <div>
         <EditCard
+          confirm
           title="Points per minute"
-          hint="Rename a type here and the mapping follows it. Review is what reviewing a minute of this kind of video pays, whoever does it — the reviewer is the manager of the project, and reviewing your own edit earns nothing."
+          hint="Rename a category here and the mapping follows it. Review is what reviewing a minute of this kind of video pays, whoever does it — the reviewer is the manager of the project, and reviewing your own edit earns nothing."
           tools={
             <button
               className="btn o"
               onClick={() =>
                 update((d) => {
-                  let n = "New video type";
+                  let n = "New video category";
                   let k = 2;
-                  while (d.rates.some((r) => r.cat === n)) n = "New video type " + k++;
+                  while (d.rates.some((r) => r.cat === n)) n = "New video category " + k++;
                   d.rates.push({ cat: n, r: [5, 5.5, 5.75, 6], review: 0 });
                 })
               }
             >
-              Add video type
+              Add video category
             </button>
           }
         >
           {(editing) => (
             <div className="scroll">
-              <table>
+              <table className="tight">
                 <thead>
                   <tr>
-                    <th>Video type</th>
-                    <th className="r" style={{ width: 84 }}>A rate</th>
-                    <th className="r" style={{ width: 74 }}>B +%</th>
-                    <th className="r" style={{ width: 74 }}>C +%</th>
-                    <th className="r" style={{ width: 74 }}>D +%</th>
-                    <th className="r" style={{ width: 62 }}>B</th>
-                    <th className="r" style={{ width: 62 }}>C</th>
-                    <th className="r" style={{ width: 62 }}>D</th>
-                    <th className="r" style={{ width: 76 }} title="Points per minute for reviewing this kind of video">
+                    <th>Video category</th>
+                    <th className="r" style={{ width: 62 }}>A rate</th>
+                    <th className="r" style={{ width: 52 }}>B +%</th>
+                    <th className="r" style={{ width: 52 }}>C +%</th>
+                    <th className="r" style={{ width: 52 }}>D +%</th>
+                    <th className="r" style={{ width: 46 }}>B</th>
+                    <th className="r" style={{ width: 46 }}>C</th>
+                    <th className="r" style={{ width: 46 }}>D</th>
+                    <th className="r" style={{ width: 56 }} title="Points per minute for reviewing this kind of video">
                       Review
                     </th>
-                    {editing && <th style={{ width: 34 }} />}
+                    {editing && <th style={{ width: 28 }} />}
                   </tr>
                 </thead>
                 <tbody>
@@ -171,7 +173,7 @@ export default function RatesTab({
                           <button
                             className="x"
                             aria-label={"Remove " + r.cat}
-                            onClick={() => removeType(i)}
+                            onClick={() => removeCategory(i)}
                           >
                             ×
                           </button>
@@ -188,6 +190,7 @@ export default function RatesTab({
 
         <aside className="stack">
           <EditCard
+            confirm
             title="Revisions"
             hint={
               "A deliverable's version says how many times it came back: version 1 is a first-pass " +
@@ -268,39 +271,153 @@ export default function RatesTab({
             )}
           </EditCard>
           <EditCard
-            title="Target and payout">
+            confirm
+            title="Target and payout"
+            hint={
+              "Points above target are paid in rungs, and a rung pays only for the points inside " +
+              "it: 70 points clear of target earns the first 60 at the first rate and the last 10 " +
+              "at the second. Rungs are counted from the editor's own target, so the same ladder " +
+              "serves every work pattern."
+            }
+            tools={
+              <>
+                <button
+                  className="btn o"
+                  onClick={() =>
+                    update((d) => {
+                      d.payBands = d.payBands ?? [];
+                      const last = d.payBands[d.payBands.length - 1];
+                      d.payBands.push(
+                        last ? { from: last.from + 60, rate: last.rate + 25 } : { from: 0, rate: 175 }
+                      );
+                    })
+                  }
+                >
+                  Add a rung
+                </button>
+                {bands.length > 1 && (
+                  <button className="btn o" onClick={() => update((d) => { d.payBands?.pop(); })}>
+                    Remove the last
+                  </button>
+                )}
+              </>
+            }
+          >
             {(editing) => (
-              <div className="row" style={{ gap: 26, alignItems: "flex-end" }}>
-                <div>
-                  <label className="fld" htmlFor="ppd">Points per working day</label>
-                  {editing ? (
-                    <NumInput
-                      className="fld-in"
-                      value={config.ppd}
-                      step="0.5"
-                      onCommit={(v) => update((d) => { d.ppd = v || 30; })}
-                    />
-                  ) : (
-                    <div className="val">{config.ppd}</div>
-                  )}
+              <>
+                <div className="row" style={{ gap: 26, alignItems: "flex-end", marginBottom: 14 }}>
+                  <div>
+                    <label className="fld" htmlFor="ppd">Points per working day</label>
+                    {editing ? (
+                      <NumInput
+                        className="fld-in"
+                        value={config.ppd}
+                        step="0.5"
+                        onCommit={(v) => update((d) => { d.ppd = v || 30; })}
+                      />
+                    ) : (
+                      <div className="val">{config.ppd}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="fld" htmlFor="pip">Months below target before a PIP</label>
+                    {editing ? (
+                      <NumInput
+                        className="fld-in"
+                        value={config.pipMonths ?? 3}
+                        step="1"
+                        min="0"
+                        onCommit={(v) => update((d) => { d.pipMonths = Math.max(0, Math.round(v)); })}
+                      />
+                    ) : (
+                      <div className="val">{config.pipMonths ?? 3}</div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="fld" htmlFor="rate">Incentive per point above target</label>
-                  {editing ? (
-                    <NumInput
-                      className="fld-in"
-                      value={config.rate}
-                      step="5"
-                      onCommit={(v) => update((d) => { d.rate = v || 0; })}
-                    />
-                  ) : (
-                    <div className="val">₹{config.rate}</div>
-                  )}
+
+                <div className="scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 150 }}>Points above target</th>
+                        <th className="r" style={{ width: 130 }}>Per point</th>
+                        <th>What that is, in points scored</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bands.map((b, i) => {
+                        const to = i + 1 < bands.length ? bands[i + 1].from : null;
+                        return (
+                          <tr key={i}>
+                            <td className={editing ? "" : "num"}>
+                              {editing ? (
+                                <NumInput
+                                  value={b.from}
+                                  step="10"
+                                  min="0"
+                                  onCommit={(v) =>
+                                    update((d) => { d.payBands[i].from = Math.max(0, Math.round(v)); })
+                                  }
+                                />
+                              ) : to === null ? (
+                                "+" + b.from + " and above"
+                              ) : (
+                                "+" + b.from + " to +" + to
+                              )}
+                            </td>
+                            <td className={editing ? "" : "r num"}>
+                              {editing ? (
+                                <NumInput
+                                  value={b.rate}
+                                  step="5"
+                                  min="0"
+                                  onCommit={(v) =>
+                                    update((d) => { d.payBands[i].rate = Math.max(0, v); })
+                                  }
+                                />
+                              ) : (
+                                "₹" + b.rate
+                              )}
+                            </td>
+                            <td className="muted" style={{ fontSize: 12.5 }}>
+                              {config.patterns
+                                .map(
+                                  (p) =>
+                                    p.name + " " +
+                                    (to === null
+                                      ? Math.round(p.target + b.from) + "+"
+                                      : Math.round(p.target + b.from) + "–" + Math.round(p.target + to))
+                                )
+                                .join(" · ")}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {bands.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="muted">
+                            No ladder set, so clearing target pays nothing.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
+
+                <p className="sub" style={{ marginTop: 12, marginBottom: 0 }}>
+                  <strong>Performance improvement plan.</strong>{" "}
+                  {(config.pipMonths ?? 3) > 0
+                    ? "An editor who misses the basic target " +
+                      (config.pipMonths ?? 3) +
+                      " months running goes on a PIP training. The count is of consecutive months " +
+                      "below target, whatever the shortfall; a single month at or above target " +
+                      "starts it again."
+                    : "No PIP threshold is set, so missing target does not trigger one."}
+                </p>
+              </>
             )}
           </EditCard>
-          <EditCard title="Work patterns">
+          <EditCard confirm title="Work patterns">
             {(editing) => (
               <div className="scroll">
                 <table>

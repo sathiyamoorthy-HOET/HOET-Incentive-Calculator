@@ -79,6 +79,13 @@ header{
 }
 header .brand{display:flex;align-items:center;gap:9px;color:var(--fg);text-decoration:none}
 header .brand .mark{width:23px;height:23px;flex:none;display:block}
+/* The mark is a white H, and on a light page it needs its own ground to be
+   one: the box goes black and the glyph keeps the paper colour. Dark mode
+   already has the ground it needs, so it is left alone. */
+:root[data-theme="light"] header .brand .mark,
+:root[data-theme="light"] .brandmark{background:#000;color:#fff}
+:root[data-theme="light"] header .brand .mark{border-radius:6px;padding:3px}
+:root[data-theme="light"] .brandmark{border-radius:8px;padding:4px}
 header .brand:hover{color:var(--fg)}
 header h1{
   margin:0;font-size:14.5px;font-weight:600;letter-spacing:-.01em;color:var(--fg);
@@ -185,6 +192,24 @@ td input:focus,td select:focus{outline:none;border-color:var(--sky);background:v
 td input.n{text-align:right;font-family:var(--num)}
 td input[aria-invalid=true]{border-color:var(--rose);background:rgba(251,113,133,.1)}
 td.wrap,th.wrap{white-space:normal}
+
+/* A table of numbers reads as one figure per row, not eight islands: the
+   columns are packed and only the name column keeps its distance. */
+.tight th,.tight td{padding-left:4px;padding-right:4px}
+.tight th:first-child,.tight td:first-child{padding-left:0;padding-right:18px}
+.tight th:last-child,.tight td:last-child{padding-right:0}
+.tight td input{padding-left:5px;padding-right:5px}
+
+/* the rate card's payout ladder and the changes waiting to be saved */
+.changes{margin:10px 0 12px;padding-left:18px;display:grid;gap:3px}
+.changes li{font-size:12.5px}
+.pending{
+  position:fixed;left:26px;bottom:18px;z-index:60;max-width:min(720px,calc(100% - 52px));
+  margin:0;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.45);
+  border-left-color:var(--amber);
+  background-image:linear-gradient(90deg,rgba(251,191,36,.08),rgba(251,191,36,0) 60%);
+}
+:root[data-theme="light"] .pending{box-shadow:0 10px 30px rgba(0,0,0,.14)}
 
 /* ----------------------------------------------------------------- buttons */
 .btn{

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { cats, inr, num, rateFor, reviewRateFor, round, totals } from "@/lib/calc";
+import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals } from "@/lib/calc";
 import { exportRun } from "@/lib/export";
 import { ActiveRun, Computed, Config, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
@@ -599,6 +599,7 @@ export default function ResultsTab({
                               No work recorded against this editor in the report.
                             </span>
                           )}
+                          <PaySplit config={config} surplus={r.surplus} />
                         </div>
                       </td>
                     </tr>
@@ -627,6 +628,34 @@ export default function ResultsTab({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * How the ladder arrived at this editor's money. The single rupee figure in
+ * the row stops being self-evident once points above target are paid in rungs,
+ * so the rungs that actually paid are spelled out underneath.
+ */
+function PaySplit({ config, surplus }: { config: Config; surplus: number }) {
+  if (surplus <= 0) return null;
+  const parts = payParts(config, surplus).filter((p) => p.pts > 0);
+  if (parts.length < 2) return null;
+  const total = parts.reduce((a, p) => a + p.amount, 0);
+  return (
+    <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--muted)" }}>
+      {round(surplus, 1)} points above target:{" "}
+      {parts.map((p, i) => (
+        <span key={p.from}>
+          {i > 0 && " + "}
+          {round(p.pts, 1)} &times; ₹{p.rate}
+          <span style={{ fontSize: 11.5 }}>
+            {" (" + (p.to === null ? "+" + p.from + " and above" : "+" + p.from + " to +" + p.to) + ")"}
+          </span>
+        </span>
+      ))}
+      {" = "}
+      <strong style={{ color: "var(--teal)" }}>{inr(total)}</strong>
+    </div>
   );
 }
 

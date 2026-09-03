@@ -6,6 +6,8 @@ import {
   EXP,
   NOTPAY,
   Pattern,
+  PayBand,
+  PayPart,
   RateRow,
   Ledger,
   RunStatus,
@@ -56,6 +58,40 @@ export function targetOf(c: Config, e: Editor): number {
   const p = patternOf(c, e.pattern);
   if (!p || !p.days) return 0;
   return round((p.target * daysOf(c, e)) / p.days, 0);
+}
+
+/* --------------------------------------------------------------- the payout
+   Points above target are not all worth the same. The ladder is read the way
+   an income-tax slab is: each rung pays only for the points that fall inside
+   it, so somebody 70 clear of target earns 60 at the first rate and 10 at the
+   second, not 70 at the second. Rungs are measured from the editor's own
+   target, so one ladder serves every work pattern. */
+
+/**
+ * The ladder, in order and without nonsense in it. A config with no ladder is
+ * a run saved before the ladder existed: it falls back to the flat rate it was
+ * priced with, so reopening it reproduces the payout that was signed off.
+ */
+export function payBandsOf(c: Config): PayBand[] {
+  const bands = (c.payBands || [])
+    .filter((b) => b && Number.isFinite(b.from) && b.from >= 0)
+    .sort((a, b) => a.from - b.from);
+  return bands.length ? bands : [{ from: 0, rate: c.rate || 0 }];
+}
+
+/** What each rung of the ladder pays on a given surplus, rungs included. */
+export function payParts(c: Config, surplus: number): PayPart[] {
+  const bands = payBandsOf(c);
+  return bands.map((b, i) => {
+    const to = i + 1 < bands.length ? bands[i + 1].from : null;
+    const rate = b.rate || 0;
+    const pts = round(Math.max(0, Math.min(surplus, to ?? surplus) - b.from), 1);
+    return { from: b.from, to, rate, pts, amount: pts * rate };
+  });
+}
+
+export function incentiveOf(c: Config, surplus: number): number {
+  return Math.round(payParts(c, surplus).reduce((a, p) => a + p.amount, 0));
 }
 
 /**
@@ -401,7 +437,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         pts,
         target,
         surplus,
-        incentive: Math.round(surplus * c.rate),
+        incentive: incentiveOf(c, surplus),
         pctv: target ? pts / target : 0,
         status,
       };

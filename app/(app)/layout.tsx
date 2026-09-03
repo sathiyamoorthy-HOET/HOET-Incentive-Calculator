@@ -12,10 +12,25 @@ export const dynamic = "force-dynamic";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  /* Verified in process against the project's published signing keys, so
+     rendering a page costs no round trip to the Auth server. The proxy has
+     already refreshed the token by the time this runs. */
+  const { data: auth, error: authError } = await supabase.auth.getClaims();
+  let claims: { sub: string; email?: string; user_metadata?: Record<string, unknown> } | null =
+    auth?.claims ?? null;
+  /* Same fallback as the proxy: a verification that could not be carried out
+     is not the same as a person who is not signed in. */
+  if (!claims && authError) {
+    const { data: fallback } = await supabase.auth.getUser();
+    if (fallback.user) {
+      claims = {
+        sub: fallback.user.id,
+        email: fallback.user.email,
+        user_metadata: fallback.user.user_metadata,
+      };
+    }
+  }
+  if (!claims) redirect("/login");
 
   const { data: config, error } = await supabase.rpc("get_config");
 
@@ -33,7 +48,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const label = user.user_metadata?.full_name || user.email || "Signed in";
+  const label =
+    (claims.user_metadata?.full_name as string | undefined) || claims.email || "Signed in";
 
   /* The revision ladder arrives only once its migration has been applied. */
   const shared = config as Config;

@@ -413,15 +413,31 @@ type ResultRow = {
 
 export async function listAccountability(): Promise<Accountability> {
   const supabase = await createClient();
-  const { data } = await supabase
+  /* Which run speaks for which month is decided first, from the cheap columns
+     alone, so the rows behind a superseded run are never fetched at all. */
+  const { data: index } = await supabase
     .from("runs")
-    .select(
-      "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, status)"
-    )
+    .select("id, month, month_label, file_name, created_at")
     .order("created_at", { ascending: false });
 
-  const runs = (data as (RunRow & { run_results: ResultRow[] })[] | null) || [];
-  const { kept, superseded, undated } = officialRuns(runs);
+  const all = (index as RunRow[] | null) || [];
+  const { kept: keptIndex, superseded, undated } = officialRuns(all);
+
+  const { data } = keptIndex.length
+    ? await supabase
+        .from("runs")
+        .select(
+          "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, status)"
+        )
+        .in("id", keptIndex.map((r) => r.id))
+    : { data: [] };
+
+  const rows = (data as (RunRow & { run_results: ResultRow[] })[] | null) || [];
+  /* Re-sorted the same way, so the column order does not depend on the order
+     the database chose to return them in. */
+  const kept = keptIndex
+    .map((r) => rows.find((x) => x.id === r.id))
+    .filter((r): r is RunRow & { run_results: ResultRow[] } => !!r);
 
   const months: MonthCol[] = kept.map((r) => ({
     key: r.month as string,
@@ -536,14 +552,26 @@ export type EditorReport = {
  */
 export async function loadEditorReport(name: string): Promise<EditorReport | null> {
   const supabase = await createClient();
+  /* The stored rows of one run are tens of kilobytes, so which runs are wanted
+     is settled from the cheap columns before any of them are read. */
+  const { data: index } = await supabase
+    .from("runs")
+    .select("id, month, month_label, file_name, created_at")
+    .order("created_at", { ascending: false });
+
+  const { kept: keptIndex } = officialRuns((index as RunRow[] | null) || []);
+  if (!keptIndex.length) return null;
+
+  type Row = RunRow & { source_rows: SourceRow[]; config_snapshot: Config };
   const { data } = await supabase
     .from("runs")
     .select("id, month, month_label, file_name, created_at, source_rows, config_snapshot")
-    .order("created_at", { ascending: false });
+    .in("id", keptIndex.map((r) => r.id));
 
-  type Row = RunRow & { source_rows: SourceRow[]; config_snapshot: Config };
-  const runs = (data as Row[] | null) || [];
-  const { kept } = officialRuns(runs);
+  const byId = new Map(((data as Row[] | null) || []).map((r) => [r.id, r]));
+  const kept = keptIndex
+    .map((r) => byId.get(r.id))
+    .filter((r): r is Row => !!r);
 
   const months: EditorMonth[] = [];
   const every = new Set<string>();

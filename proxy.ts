@@ -8,6 +8,14 @@ const PUBLIC_PATHS = ["/login", "/signup", "/forgot", "/auth"];
  * Refreshes the Supabase session on every request and keeps signed-out users
  * out of the app. Server Actions re-check auth themselves; this is the front
  * door, not the only lock.
+ *
+ * The check is deliberately an optimistic one, as Next's own guidance for
+ * proxies asks: getClaims() verifies the token's signature against the
+ * project's published keys using WebCrypto, in process, so the front door
+ * costs no network round trip. getUser() would ask the Auth server on every
+ * single request, which put a whole trip to the database in front of every
+ * page in the app. Authorisation still happens where it counts — row-level
+ * security in the database, and requireUser() in every Server Action.
  */
 export async function proxy(request: NextRequest) {
   const env = supabaseEnv();
@@ -41,9 +49,17 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  let user = data?.claims ? { id: data.claims.sub } : null;
+
+  /* Verification can fail for reasons that have nothing to do with the person
+     holding the token — the signing keys could not be fetched, say. Ask the
+     Auth server before bouncing somebody who is genuinely signed in. This
+     costs a round trip, but only when the cheap path has already failed. */
+  if (!user && error) {
+    const { data: fallback } = await supabase.auth.getUser();
+    user = fallback.user ? { id: fallback.user.id } : null;
+  }
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));

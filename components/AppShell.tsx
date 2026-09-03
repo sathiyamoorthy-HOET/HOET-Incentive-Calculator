@@ -25,7 +25,7 @@ import ThemeToggle from "./ThemeToggle";
 const TABS = [
   ["/run", "Run a month"],
   ["/history", "History"],
-  ["/editors", "Editors"],
+  ["/editors", "Editor reports"],
   ["/team", "Team"],
   ["/rate-card", "Rate card"],
   ["/video-types", "Video types"],

@@ -57,7 +57,7 @@ export default function EditorsTab({ data }: { data: Accountability }) {
 
   return (
     <section className="panel on">
-      <h2>Editors</h2>
+      <h2>Editor reports</h2>
       <p className="sub">
         Every saved run, read the other way round: one row per editor, one column per month. Use it
         to see who clears target every month and who never does. Open a name for that editor&apos;s

@@ -18,7 +18,7 @@ export default async function Page({ params }: { params: Promise<{ name: string 
           last run, or renamed since — a rename starts their history again under the new name.
         </div>
         <p className="sub">
-          <Link href="/editors">Back to all editors</Link>
+          <Link href="/editors">Back to every editor</Link>
         </p>
       </section>
     );

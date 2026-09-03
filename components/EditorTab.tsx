@@ -110,7 +110,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
         <h2>{name}</h2>
         <div className="note bad">
           This editor appears in saved runs, but none of those runs has a month set, so there is
-          nothing to show month by month. Open the run from <Link href="/editors">Editors</Link>,
+          nothing to show month by month. Open the run from <Link href="/editors">Editor reports</Link>,
           type its month in the header box, and save it again.
         </div>
       </section>
@@ -144,7 +144,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
         Every month this editor appears in a saved run, priced with the rate card that was in force
         at the time. Slab {latest.slab}
         {latest.pattern ? " · " + latest.pattern : ""} as of {monthName(latest.month)}.{" "}
-        <Link href="/editors">Back to all editors</Link>
+        <Link href="/editors">Back to every editor</Link>
       </p>
 
       <div className="card">

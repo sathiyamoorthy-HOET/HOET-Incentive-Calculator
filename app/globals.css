@@ -163,8 +163,13 @@ h2{font-size:1.42rem;line-height:1.2;letter-spacing:-.02em;color:var(--fg);font-
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 /* One wide table with the short cards alongside it, so a big screen is not
    two thirds empty while the numbers crowd into a column. */
-.split{display:grid;grid-template-columns:minmax(0,1080px) minmax(320px,560px);gap:18px;align-items:start}
-@media(max-width:1240px){.split{grid-template-columns:1fr}}
+/* Sized to the tables rather than to the window: given the whole 1720px the
+   rate card's names drift half a screen away from their own numbers. */
+.split{
+  display:grid;grid-template-columns:minmax(0,860px) minmax(320px,560px);
+  gap:18px;align-items:start;max-width:1438px;
+}
+@media(max-width:1240px){.split{grid-template-columns:1fr;max-width:none}}
 /* two short cards sharing one column of a g2, so the row ends level */
 .stack>.card:last-child{margin-bottom:0}
 @media(max-width:900px){.g2{grid-template-columns:1fr}}

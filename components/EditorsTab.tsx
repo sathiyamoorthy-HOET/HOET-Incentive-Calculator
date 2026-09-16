@@ -4,10 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import { inr, num, round } from "@/lib/calc";
 import { monthShort } from "@/lib/months";
-import { STATUS } from "@/lib/types";
+import { SLABS, STATUS } from "@/lib/types";
 import type { Accountability, GridCell } from "@/app/actions";
+import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
 
 type Mode = "incentive" | "surplus" | "status";
+
+/** Sortable columns: the fixed ones by name, a month by its key. */
+type Col = "name" | "slab" | "cleared" | "total" | `m:${string}`;
+
+/** What a month cell is worth under the current view; missing when there is no run for it. */
+function cellValue(c: GridCell | undefined, mode: Mode): number | null {
+  if (!c) return null;
+  if (mode === "incentive") return c.incentive;
+  if (mode === "surplus") return c.minutes > 0.05 ? c.surplus : null;
+  return c.status === "over" ? 2 : c.status === "under" ? 1 : 0;
+}
 
 const MODES: [Mode, string][] = [
   ["incentive", "Incentive"],
@@ -53,7 +65,23 @@ function Cell({ cell, mode }: { cell: GridCell | undefined; mode: Mode }) {
 
 export default function EditorsTab({ data }: { data: Accountability }) {
   const [mode, setMode] = useState<Mode>("incentive");
-  const { months, editors, undated, superseded } = data;
+  const [sort, setSort] = useState<Sort<Col>>(null);
+  const { months, undated, superseded } = data;
+
+  const editors = sorted(
+    data.editors,
+    sort,
+    (e, col) => {
+      if (col === "name") return e.name;
+      if (col === "slab") return SLABS.indexOf(e.slab as (typeof SLABS)[number]);
+      /* Who clears most often, as a share of the months they worked. */
+      if (col === "cleared") return e.active ? e.cleared / e.active : null;
+      if (col === "total") return e.incentive;
+      return cellValue(e.cells[col.slice(2)], mode);
+    },
+    (e) => e.name
+  );
+  const head = { sort, onToggle: (col: Col) => setSort(toggleSort(sort, col)) };
 
   return (
     <section className="panel on">
@@ -107,17 +135,24 @@ export default function EditorsTab({ data }: { data: Accountability }) {
             <table className="grid">
               <thead>
                 <tr>
-                  <th>Editor</th>
-                  <th>Slab</th>
+                  <SortHead {...head} col="name" label="Editor" />
+                  <SortHead {...head} col="slab" label="Slab" />
                   {months.map((m) => (
-                    <th key={m.key} className="r">
-                      <Link href={"/history/" + m.runId} title={m.label || m.fileName || ""}>
-                        {monthShort(m.key)}
-                      </Link>
-                    </th>
+                    <SortHead
+                      {...head}
+                      key={m.key}
+                      col={`m:${m.key}`}
+                      right
+                      title={"Sort by " + monthShort(m.key)}
+                      before={
+                        <Link href={"/history/" + m.runId} title={m.label || m.fileName || ""}>
+                          {monthShort(m.key)}
+                        </Link>
+                      }
+                    />
                   ))}
-                  <th className="r">Cleared</th>
-                  <th className="r">Total</th>
+                  <SortHead {...head} col="cleared" label="Cleared" right />
+                  <SortHead {...head} col="total" label="Total" right />
                 </tr>
               </thead>
               <tbody>

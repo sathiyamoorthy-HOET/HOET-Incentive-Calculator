@@ -213,6 +213,11 @@ th .sorth:hover .arrow{opacity:.45}
 th .sorth.on{color:var(--fg)}
 th .sorth.on .arrow{opacity:1}
 th.r .sorth{flex-direction:row-reverse}
+/* Arrow only, beside a header that is a link: faint until it is the sort. */
+th .sorth.bare{margin-left:3px;vertical-align:baseline}
+th .sorth.bare .arrow{opacity:.3}
+th .sorth.bare.on .arrow{opacity:1}
+th .sorth.bare:hover .arrow{opacity:.7}
 
 /* A table of numbers reads as one figure per row, not eight islands: the
    columns are packed and only the name column keeps its distance. */

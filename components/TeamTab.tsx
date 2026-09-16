@@ -6,75 +6,26 @@ import { exportTeam } from "@/lib/export";
 import { Config, Slab, SLABS } from "@/lib/types";
 import EditCard from "./EditCard";
 import NumInput from "./NumInput";
+import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
 
-type SortCol = "name" | "email" | "slab" | "pattern" | "reviews" | "days" | "target";
-/** Which column the table is sorted on and which way. null is the saved team order. */
-type Sort = { col: SortCol; dir: "asc" | "desc" } | null;
+type Col = "name" | "email" | "slab" | "pattern" | "reviews" | "days" | "target";
 
-const byText = (a: string, b: string) => {
-  /* Blank cells sit at the foot whichever way the column is sorted. */
-  const ea = !a.trim(), eb = !b.trim();
-  if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1;
-  return a.trim().localeCompare(b.trim(), undefined, { sensitivity: "base" });
-};
-
-/**
- * The team in the order asked for, as positions in `config.team`. Rows are
- * addressed by that position rather than moved, so an edit under any sort
- * still lands on the right editor and the saved order is never touched.
- */
-function orderOf(c: Config, sort: Sort): number[] {
-  const idx = c.team.map((_, i) => i);
-  if (!sort) return idx;
+/** The team in the order asked for, as positions in `config.team`. */
+function orderOf(c: Config, sort: Sort<Col>): number[] {
   const t = c.team;
-  const cmp: Record<SortCol, (i: number, j: number) => number> = {
-    name: (i, j) => byText(t[i].name, t[j].name),
-    email: (i, j) => byText(t[i].email ?? "", t[j].email ?? ""),
-    slab: (i, j) => SLABS.indexOf(t[i].slab) - SLABS.indexOf(t[j].slab),
-    pattern: (i, j) => byText(t[i].pattern, t[j].pattern),
-    reviews: (i, j) => Number(!!t[i].reviewer) - Number(!!t[j].reviewer),
-    days: (i, j) => daysOf(c, t[i]) - daysOf(c, t[j]),
-    target: (i, j) => targetOf(c, t[i]) - targetOf(c, t[j]),
+  const value = (i: number, col: Col) => {
+    const e = t[i];
+    switch (col) {
+      case "name": return e.name;
+      case "email": return e.email ?? "";
+      case "slab": return SLABS.indexOf(e.slab);
+      case "pattern": return e.pattern;
+      case "reviews": return !!e.reviewer;
+      case "days": return daysOf(c, e);
+      case "target": return targetOf(c, e);
+    }
   };
-  const sign = sort.dir === "asc" ? 1 : -1;
-  const by = cmp[sort.col];
-  /* Ties fall back to the name, always A to Z, so a column of equal values
-     — every slab B, say — still reads as a list rather than a shuffle. */
-  return idx.sort((i, j) => sign * by(i, j) || byText(t[i].name, t[j].name));
-}
-
-type HeadProps = {
-  col: SortCol;
-  label: string;
-  width?: number;
-  right?: boolean;
-  title?: string;
-  sort: Sort;
-  onToggle: (col: SortCol) => void;
-};
-
-/** A column header that sorts the table when clicked, and says which way. */
-function SortHead({ col, label, width, right, title, sort, onToggle }: HeadProps) {
-  const on = sort?.col === col;
-  return (
-    <th
-      className={right ? "r" : undefined}
-      style={width ? { width } : undefined}
-      aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        type="button"
-        className={"sorth" + (on ? " on" : "")}
-        onClick={() => onToggle(col)}
-        title={title ?? "Sort by " + label.toLowerCase()}
-      >
-        {label}
-        <span className="arrow" aria-hidden="true">
-          {on ? (sort.dir === "asc" ? "▲" : "▼") : "▲"}
-        </span>
-      </button>
-    </th>
-  );
+  return sorted(t.map((_, i) => i), sort, value, (i) => t[i].name.trim());
 }
 
 export default function TeamTab({
@@ -84,7 +35,7 @@ export default function TeamTab({
   config: Config;
   update: (fn: (draft: Config) => void) => void;
 }) {
-  const [sort, setSort] = useState<Sort>(null);
+  const [sort, setSort] = useState<Sort<Col>>(null);
 
   /* Marks the rows the save will refuse, so the message in the banner has
      something to point at. */
@@ -186,8 +137,8 @@ function TeamTable({
   config: Config;
   update: (fn: (draft: Config) => void) => void;
   editing: boolean;
-  sort: Sort;
-  onSort: (s: Sort) => void;
+  sort: Sort<Col>;
+  onSort: (s: Sort<Col>) => void;
   clashing: Set<string>;
   removeEditor: (i: number) => void;
 }) {
@@ -203,15 +154,7 @@ function TeamTable({
 
   const order = holdKey && held?.key === holdKey ? held.order : orderOf(config, sort);
 
-  /* A header is clicked the way a spreadsheet column is: once for ascending,
-     again for descending, a third time to go back to the saved team order. */
-  function toggle(col: SortCol) {
-    if (!sort || sort.col !== col) onSort({ col, dir: "asc" });
-    else if (sort.dir === "asc") onSort({ col, dir: "desc" });
-    else onSort(null);
-  }
-
-  const head = { sort, onToggle: toggle };
+  const head = { sort, onToggle: (col: Col) => onSort(toggleSort(sort, col)) };
 
   return (
     <div className="scroll">

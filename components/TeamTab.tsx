@@ -7,44 +7,74 @@ import { Config, Slab, SLABS } from "@/lib/types";
 import EditCard from "./EditCard";
 import NumInput from "./NumInput";
 
-type SortKey = "team" | "name" | "slab" | "pattern" | "reviews" | "days" | "target";
+type SortCol = "name" | "email" | "slab" | "pattern" | "reviews" | "days" | "target";
+/** Which column the table is sorted on and which way. null is the saved team order. */
+type Sort = { col: SortCol; dir: "asc" | "desc" } | null;
 
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: "team", label: "Team order" },
-  { key: "name", label: "Name A–Z" },
-  { key: "slab", label: "Slab A–D" },
-  { key: "pattern", label: "Work pattern" },
-  { key: "reviews", label: "Reviewers first" },
-  { key: "days", label: "Days available, fewest first" },
-  { key: "target", label: "Target, highest first" },
-];
-
-const byName = (a: string, b: string) =>
-  a.trim().localeCompare(b.trim(), undefined, { sensitivity: "base" });
+const byText = (a: string, b: string) => {
+  /* Blank cells sit at the foot whichever way the column is sorted. */
+  const ea = !a.trim(), eb = !b.trim();
+  if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1;
+  return a.trim().localeCompare(b.trim(), undefined, { sensitivity: "base" });
+};
 
 /**
  * The team in the order asked for, as positions in `config.team`. Rows are
  * addressed by that position rather than moved, so an edit under any sort
  * still lands on the right editor and the saved order is never touched.
  */
-function orderOf(c: Config, sort: SortKey): number[] {
+function orderOf(c: Config, sort: Sort): number[] {
   const idx = c.team.map((_, i) => i);
-  if (sort === "team") return idx;
+  if (!sort) return idx;
   const t = c.team;
-  const name = (i: number, j: number) => byName(t[i].name, t[j].name);
-  const cmp: Record<Exclude<SortKey, "team">, (i: number, j: number) => number> = {
-    name: (i, j) => {
-      /* A row with no name yet sits at the foot, not among the As. */
-      const ai = !t[i].name.trim(), aj = !t[j].name.trim();
-      return ai !== aj ? (ai ? 1 : -1) : name(i, j);
-    },
-    slab: (i, j) => SLABS.indexOf(t[i].slab) - SLABS.indexOf(t[j].slab) || name(i, j),
-    pattern: (i, j) => byName(t[i].pattern, t[j].pattern) || name(i, j),
-    reviews: (i, j) => Number(!!t[j].reviewer) - Number(!!t[i].reviewer) || name(i, j),
-    days: (i, j) => daysOf(c, t[i]) - daysOf(c, t[j]) || name(i, j),
-    target: (i, j) => targetOf(c, t[j]) - targetOf(c, t[i]) || name(i, j),
+  const cmp: Record<SortCol, (i: number, j: number) => number> = {
+    name: (i, j) => byText(t[i].name, t[j].name),
+    email: (i, j) => byText(t[i].email ?? "", t[j].email ?? ""),
+    slab: (i, j) => SLABS.indexOf(t[i].slab) - SLABS.indexOf(t[j].slab),
+    pattern: (i, j) => byText(t[i].pattern, t[j].pattern),
+    reviews: (i, j) => Number(!!t[i].reviewer) - Number(!!t[j].reviewer),
+    days: (i, j) => daysOf(c, t[i]) - daysOf(c, t[j]),
+    target: (i, j) => targetOf(c, t[i]) - targetOf(c, t[j]),
   };
-  return idx.sort(cmp[sort]);
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const by = cmp[sort.col];
+  /* Ties fall back to the name, always A to Z, so a column of equal values
+     — every slab B, say — still reads as a list rather than a shuffle. */
+  return idx.sort((i, j) => sign * by(i, j) || byText(t[i].name, t[j].name));
+}
+
+type HeadProps = {
+  col: SortCol;
+  label: string;
+  width?: number;
+  right?: boolean;
+  title?: string;
+  sort: Sort;
+  onToggle: (col: SortCol) => void;
+};
+
+/** A column header that sorts the table when clicked, and says which way. */
+function SortHead({ col, label, width, right, title, sort, onToggle }: HeadProps) {
+  const on = sort?.col === col;
+  return (
+    <th
+      className={right ? "r" : undefined}
+      style={width ? { width } : undefined}
+      aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        className={"sorth" + (on ? " on" : "")}
+        onClick={() => onToggle(col)}
+        title={title ?? "Sort by " + label.toLowerCase()}
+      >
+        {label}
+        <span className="arrow" aria-hidden="true">
+          {on ? (sort.dir === "asc" ? "▲" : "▼") : "▲"}
+        </span>
+      </button>
+    </th>
+  );
 }
 
 export default function TeamTab({
@@ -54,7 +84,7 @@ export default function TeamTab({
   config: Config;
   update: (fn: (draft: Config) => void) => void;
 }) {
-  const [sort, setSort] = useState<SortKey>("team");
+  const [sort, setSort] = useState<Sort>(null);
 
   /* Marks the rows the save will refuse, so the message in the banner has
      something to point at. */
@@ -86,7 +116,7 @@ export default function TeamTab({
     /* The new row goes in at the top, where the eye already is, and the sort
        drops back to team order so that is where it appears — under any other
        sort "New editor" would land somewhere in the middle of the list. */
-    setSort("team");
+    setSort(null);
     update((d) => {
       let n = "New editor";
       let k = 2;
@@ -116,14 +146,6 @@ export default function TeamTab({
       <EditCard
         meta={
           <>
-            <label className="sortby">
-              Sort
-              <select value={sort} onChange={(ev) => setSort(ev.target.value as SortKey)}>
-                {SORTS.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
-              </select>
-            </label>
             <button className="btn o" onClick={() => exportTeam(config)}>
               Export team list
             </button>
@@ -142,6 +164,7 @@ export default function TeamTab({
             update={update}
             editing={editing}
             sort={sort}
+            onSort={setSort}
             clashing={clashing}
             removeEditor={removeEditor}
           />
@@ -156,13 +179,15 @@ function TeamTable({
   update,
   editing,
   sort,
+  onSort,
   clashing,
   removeEditor,
 }: {
   config: Config;
   update: (fn: (draft: Config) => void) => void;
   editing: boolean;
-  sort: SortKey;
+  sort: Sort;
+  onSort: (s: Sort) => void;
   clashing: Set<string>;
   removeEditor: (i: number) => void;
 }) {
@@ -172,26 +197,40 @@ function TeamTable({
      would otherwise slide away from under the cursor with every letter typed
      into it. The order is re-read when Edit is pressed, when the sort changes,
      and when a row is added or removed — never on a keystroke. */
-  const holdKey = editing ? sort + "|" + team.length : null;
+  const holdKey = editing ? (sort ? sort.col + sort.dir : "team") + "|" + team.length : null;
   const [held, setHeld] = useState<{ key: string; order: number[] } | null>(null);
   if (holdKey && held?.key !== holdKey) setHeld({ key: holdKey, order: orderOf(config, sort) });
 
   const order = holdKey && held?.key === holdKey ? held.order : orderOf(config, sort);
+
+  /* A header is clicked the way a spreadsheet column is: once for ascending,
+     again for descending, a third time to go back to the saved team order. */
+  function toggle(col: SortCol) {
+    if (!sort || sort.col !== col) onSort({ col, dir: "asc" });
+    else if (sort.dir === "asc") onSort({ col, dir: "desc" });
+    else onSort(null);
+  }
+
+  const head = { sort, onToggle: toggle };
 
   return (
     <div className="scroll">
       <table>
         <thead>
           <tr>
-            <th>Editor</th>
-            <th style={{ width: 230 }}>Mail ID</th>
-            <th style={{ width: 90 }}>Slab</th>
-            <th style={{ width: 130 }}>Work pattern</th>
-            <th style={{ width: 90 }} title="Reviews work rather than editing it">
-              Reviews
-            </th>
-            <th className="r" style={{ width: 100 }}>Days available</th>
-            <th className="r" style={{ width: 90 }}>Target</th>
+            <SortHead {...head} col="name" label="Editor" />
+            <SortHead {...head} col="email" label="Mail ID" width={230} />
+            <SortHead {...head} col="slab" label="Slab" width={90} />
+            <SortHead {...head} col="pattern" label="Work pattern" width={130} />
+            <SortHead
+              {...head}
+              col="reviews"
+              label="Reviews"
+              width={90}
+              title="Reviews work rather than editing it"
+            />
+            <SortHead {...head} col="days" label="Days available" width={100} right />
+            <SortHead {...head} col="target" label="Target" width={90} right />
             {editing && <th style={{ width: 40 }} />}
           </tr>
         </thead>

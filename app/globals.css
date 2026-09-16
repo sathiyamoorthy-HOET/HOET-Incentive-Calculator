@@ -199,13 +199,20 @@ td input[aria-invalid=true]{border-color:var(--rose);background:rgba(251,113,133
 td.wrap,th.wrap{white-space:normal}
 td a.mail{color:var(--fg-soft);text-decoration:none}
 td a.mail:hover{color:var(--fg);text-decoration:underline}
-/* The sort picker in a card head: a label and a select on one line. */
-.sortby{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
-.sortby select{
-  padding:5px 8px;border:1px solid var(--border);border-radius:7px;background:var(--card-2);
-  color:var(--fg);font-size:12.5px;
+/* A column header that sorts when clicked, the way a spreadsheet's does. It
+   inherits the header's type so an unsorted table looks exactly as before;
+   the arrow only shows on the sorted column, or on hover as an invitation. */
+th .sorth{
+  all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;
+  font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;white-space:nowrap;
 }
-.sortby select:focus{outline:none;border-color:var(--sky)}
+th .sorth:hover{color:var(--fg-soft)}
+th .sorth:focus-visible{outline:2px solid var(--sky);outline-offset:2px;border-radius:3px}
+th .sorth .arrow{font-size:8px;opacity:0;transition:opacity .12s}
+th .sorth:hover .arrow{opacity:.45}
+th .sorth.on{color:var(--fg)}
+th .sorth.on .arrow{opacity:1}
+th.r .sorth{flex-direction:row-reverse}
 
 /* A table of numbers reads as one figure per row, not eight islands: the
    columns are packed and only the name column keeps its distance. */

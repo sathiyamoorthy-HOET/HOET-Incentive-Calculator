@@ -36,7 +36,9 @@ export default function RatesTab({
       <h2>Rate card</h2>
       <p className="sub">
         Base rate is what a slab A editor earns per minute. The uplift is the allowance less
-        experienced editors receive while they learn.
+        experienced editors receive while they learn. A category priced per project pays its rate
+        once for each project, whatever was uploaded against it — for work handed over on a drive
+        rather than through Orbitova.
       </p>
 
       <div className="split">
@@ -76,6 +78,9 @@ export default function RatesTab({
                       <th className="r" style={{ width: 46 }}>D</th>
                       <th className="r" style={{ width: 56 }} title="Points per minute for reviewing this kind of video">
                         Review
+                      </th>
+                      <th style={{ width: 74 }} title="Whether the rate is per minute delivered or once per project">
+                        Per
                       </th>
                       {editing && <th style={{ width: 28 }} />}
                     </tr>
@@ -165,6 +170,27 @@ export default function RatesTab({
                             />
                           ) : (
                             round(r.review ?? 0, 2)
+                          )}
+                        </td>
+
+                        <td className={editing ? "" : "muted"}>
+                          {editing ? (
+                            <select
+                              value={r.unit === "project" ? "project" : "minute"}
+                              aria-label={"Priced per, " + r.cat}
+                              onChange={(ev) =>
+                                update((d) => {
+                                  d.rates[i].unit = ev.target.value === "project" ? "project" : "minute";
+                                })
+                              }
+                            >
+                              <option value="minute">minute</option>
+                              <option value="project">project</option>
+                            </select>
+                          ) : r.unit === "project" ? (
+                            "project"
+                          ) : (
+                            "minute"
                           )}
                         </td>
 

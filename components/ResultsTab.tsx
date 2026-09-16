@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals } from "@/lib/calc";
+import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals, unitOf } from "@/lib/calc";
 import { exportRun } from "@/lib/export";
 import { ActiveRun, Computed, Config, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
@@ -49,7 +49,7 @@ export default function ResultsTab({
 
   const o = result.out;
   const t = totals(o);
-  const active = o.filter((r) => r.mins > 0.05);
+  const active = o.filter((r) => r.mins > 0.05 || r.projects > 0);
   const cleared = o.filter((r) => r.surplus > 0);
   const blocked = o.filter((r) => r.status === "blocked");
   const affected = o.filter((r) => r.untyped > 0.05).sort((a, b) => b.untyped - a.untyped);
@@ -477,7 +477,14 @@ export default function ResultsTab({
                       )}
                     </td>
                     <td>{r.slab}</td>
-                    <td className="r num">{r.mins}</td>
+                    <td className="r num">
+                      {r.mins}
+                      {r.projects > 0 && (
+                        <span className="muted" style={{ fontSize: 11.5 }}>
+                          {" · " + r.projects + (r.projects === 1 ? " project" : " projects")}
+                        </span>
+                      )}
+                    </td>
                     <td className="r num">
                       {r.revised ? (
                         <>
@@ -548,10 +555,13 @@ export default function ResultsTab({
                                 {keys.map((c) => {
                                   const mn = round(r.byCat[c], 1);
                                   const rt = c === NOTPAY ? 0 : rateFor(config, c, r.slab);
+                                  const perProject = c !== NOTPAY && unitOf(config, c) === "project";
                                   return (
                                     <tr key={c}>
                                       <td>{c}</td>
-                                      <td className="r num">{mn}</td>
+                                      <td className="r num">
+                                        {perProject ? mn + (mn === 1 ? " project" : " projects") : mn}
+                                      </td>
                                       <td className="r num">{rt ? rt : "—"}</td>
                                       <td
                                         className="r num"

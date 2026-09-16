@@ -35,6 +35,12 @@ export function rateFor(c: Config, cat: string, slab: Slab): number {
   return r ? r.r[SLABS.indexOf(slab)] || 0 : 0;
 }
 
+/** Whether this category pays by the minute delivered or once per project. */
+export function unitOf(c: Config, cat: string): "minute" | "project" {
+  const r = c.rates.find((x) => x.cat === cat);
+  return r?.unit === "project" ? "project" : "minute";
+}
+
 /** Points a minute for reviewing this kind of video. */
 export function reviewRateFor(c: Config, cat: string): number {
   const r = c.rates.find((x) => x.cat === cat);
@@ -187,6 +193,25 @@ export function deliverableKey(r: SourceRow): string | null {
   return r.code + "#" + r.did;
 }
 
+/**
+ * The name a row is settled under. A project priced as a whole is one entry
+ * however many cuts of it turn up, this month or next: the fee is paid once.
+ */
+export function settleKey(c: Config, r: SourceRow): string | null {
+  const cat = catOf(c, r.type);
+  if (r.code && cat && cat !== NOTPAY && unitOf(c, cat) === "project") return r.code + "#project";
+  return deliverableKey(r);
+}
+
+/** What a row earns before any deduction, or 0 if nobody or nothing to pay. */
+function grossOf(c: Config, r: SourceRow): number {
+  const m = matchEditor(c, r.raw);
+  const cat = catOf(c, r.type);
+  if (!m.e || m.score < MATCH_THRESHOLD || !cat || cat === NOTPAY) return 0;
+  const rate = rateFor(c, cat, m.e.slab);
+  return unitOf(c, cat) === "project" ? rate : r.mins * rate;
+}
+
 /** The version of a deliverable a row represents. Version 1 means no revisions. */
 const versionOf = (r: SourceRow) => Math.max(1, Math.round((r.rev ?? 0) + 1));
 
@@ -206,7 +231,7 @@ export function settleRows(c: Config, rows: SourceRow[], ledger: Ledger): Source
   const seen: Ledger = { ...ledger };
 
   return rows.map((r) => {
-    const key = deliverableKey(r);
+    const key = settleKey(c, r);
     if (!key) return { ...r, settle: { mode: "full" } as Settlement };
 
     const version = versionOf(r);
@@ -216,18 +241,15 @@ export function settleRows(c: Config, rows: SourceRow[], ledger: Ledger): Source
     if (!prior) {
       /* First sight. What it earns now is the basis for any later deduction,
          so it is worked out here rather than left to compute. */
-      const m = matchEditor(c, r.raw);
-      const cat = catOf(c, r.type);
-      const gross =
-        m.e && m.score >= MATCH_THRESHOLD && cat && cat !== NOTPAY
-          ? r.mins * rateFor(c, cat, m.e.slab)
-          : 0;
-      seen[key] = { version, gross, chargedPct: pctNow };
+      seen[key] = { version, gross: grossOf(c, r), chargedPct: pctNow };
       return { ...r, settle: { mode: "full" } as Settlement };
     }
 
-    /* Seen before and no further along: nothing new was delivered. */
-    if (version <= prior.version) return { ...r, settle: { mode: "skip" } as Settlement };
+    /* Seen before and no further along: nothing new was delivered. A project
+       fee has no version to move along either — it was paid, and that is that. */
+    if (version <= prior.version || key.endsWith("#project")) {
+      return { ...r, settle: { mode: "skip" } as Settlement };
+    }
 
     /* The ladder is read by round count, not summed, so a video already
        charged 5% at two rounds owes only the difference when it reaches the
@@ -243,20 +265,14 @@ export function settleRows(c: Config, rows: SourceRow[], ledger: Ledger): Source
 export function ledgerAfter(c: Config, rows: SourceRow[], ledger: Ledger): Ledger {
   const next: Ledger = { ...ledger };
   for (const r of settleRows(c, rows, ledger)) {
-    const key = deliverableKey(r);
+    const key = settleKey(c, r);
     if (!key) continue;
     const version = versionOf(r);
     const pctNow = penaltyOf(c, version - 1) * 100;
     const prior = next[key];
     if (!prior) {
-      const m = matchEditor(c, r.raw);
-      const cat = catOf(c, r.type);
-      const gross =
-        m.e && m.score >= MATCH_THRESHOLD && cat && cat !== NOTPAY
-          ? r.mins * rateFor(c, cat, m.e.slab)
-          : 0;
-      next[key] = { version, gross, chargedPct: pctNow };
-    } else if (version > prior.version) {
+      next[key] = { version, gross: grossOf(c, r), chargedPct: pctNow };
+    } else if (version > prior.version && !key.endsWith("#project")) {
       next[key] = {
         version,
         gross: prior.gross,
@@ -284,8 +300,12 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     reviewMins: number;
     reviewPts: number;
     reviewed: number;
+    projects: number;
   };
   const per = new Map<string, Acc>();
+  /* Projects already paid their fee in this run, by category and code. */
+  const credited = new Set<string>();
+  let seq = 0;
   const unknownTypes = new Map<string, number>();
   const unmatched = new Map<string, { mins: number; best: string | null; score: number }>();
   const ignore = c.ignore || [];
@@ -293,7 +313,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
   const blank = (): Acc => ({
     mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
     revised: 0, rounds: 0, deducted: 0, carried: 0, carryDed: 0,
-    revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
+    revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0, projects: 0,
   });
   const accFor = (name: string): Acc => {
     if (!per.has(name)) per.set(name, blank());
@@ -306,6 +326,15 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
 
     const m = matchEditor(c, r.raw);
     const cat = catOf(c, r.type);
+    const rowNo = seq++;
+
+    /* A category priced per project pays its rate once for the project,
+       whatever was uploaded against it. A project row — one with no
+       deliverable in the report — is therefore work only in such a category;
+       anywhere else it is a project nobody has delivered on yet, and is
+       passed over without being counted as unmatched, untyped or anything. */
+    const byProject = !!cat && cat !== NOTPAY && unitOf(c, cat) === "project";
+    if (r.project && !byProject) continue;
 
     /* Reviewing is credited from the same row as the editing, because it is
        the same video: the manager of its project reviews it, and only once
@@ -380,6 +409,19 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       rec.byCat[cat] = (rec.byCat[cat] || 0) + r.mins;
       continue;
     }
+    if (byProject) {
+      /* One fee for the project, however many cuts of it the report lists:
+         a second deliverable of the same project adds its minutes and nothing
+         more. Revisions are not charged — a day's work has no version. */
+      const key = cat + "\u0000" + (r.code || "row " + rowNo);
+      if (credited.has(key)) continue;
+      credited.add(key);
+      rec.pts += rateFor(c, cat, m.e.slab);
+      rec.projects += 1;
+      rec.byCat[cat] = (rec.byCat[cat] || 0) + 1;
+      continue;
+    }
+
     /* Revisions are charged against the video that was revised, so the
        deduction is visible next to the work it came from. */
     const gross = r.mins * rateFor(c, cat, m.e.slab);
@@ -398,18 +440,14 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
 
   const out: EditorResult[] = c.team
     .map((e) => {
-      const rec =
-        per.get(e.name) || {
-          mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
-          revised: 0, rounds: 0, deducted: 0, carried: 0, carryDed: 0,
-          revByCat: {}, reviewMins: 0, reviewPts: 0, reviewed: 0,
-        };
+      const rec = per.get(e.name) || blank();
       const target = targetOf(c, e);
       const pts = round(rec.pts + rec.reviewPts, 1);
       const surplus = Math.max(0, round(pts - target, 1));
+      const worked = rec.mins >= 0.05 || rec.projects > 0;
       let status: RunStatus = "none";
-      if (rec.mins < 0.05 && rec.reviewMins < 0.05) status = "none";
-      else if (rec.mins < 0.05) status = surplus > 0 ? "over" : "under";
+      if (!worked && rec.reviewMins < 0.05) status = "none";
+      else if (!worked) status = surplus > 0 ? "over" : "under";
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
       else status = "under";
@@ -434,6 +472,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         reviewPts: round(rec.reviewPts, 1),
         reviewed: rec.reviewed,
         isReviewer: !!e.reviewer,
+        projects: rec.projects,
         pts,
         target,
         surplus,

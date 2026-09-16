@@ -41,7 +41,7 @@ function Breakdown({ cats }: { cats: EditorCat[] }) {
               className="r num"
               style={c.kind === "untyped" ? { color: "var(--rose)" } : undefined}
             >
-              {c.minutes}
+              {c.unit === "project" ? c.minutes + (c.minutes === 1 ? " project" : " projects") : c.minutes}
             </td>
             <td className="r num">{c.rate ? c.rate : "—"}</td>
             <td className="r num" style={c.deducted ? { color: "var(--rose)" } : undefined}>

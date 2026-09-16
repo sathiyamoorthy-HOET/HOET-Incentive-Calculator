@@ -55,8 +55,10 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Incentive");
 
-  const rc: (string | number)[][] = [["Video type", "A", "B", "C", "D", "Review / min"]];
-  c.rates.forEach((r) => rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3], r.review ?? 0]));
+  const rc: (string | number)[][] = [["Video type", "A", "B", "C", "D", "Review / min", "Priced per"]];
+  c.rates.forEach((r) =>
+    rc.push([r.cat, r.r[0], r.r[1], r.r[2], r.r[3], r.review ?? 0, r.unit === "project" ? "project" : "minute"])
+  );
   rc.push([]);
   rc.push(["Points per working day", c.ppd]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
@@ -99,7 +101,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
   }
 
   const ws2 = XLSX.utils.aoa_to_sheet(rc);
-  ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }];
+  ws2["!cols"] = [{ wch: 34 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 11 }];
   XLSX.utils.book_append_sheet(wb, ws2, "Rate card");
 
   XLSX.writeFile(wb, "HOET_Incentive_" + mo.replace(/[^\w]+/g, "_") + ".xlsx");
@@ -108,11 +110,14 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
 export async function exportTeam(c: Config) {
   const XLSX = await sheets();
   const aoa: (string | number)[][] = [
-    ["Editor", "Slab", "Experience", "Work pattern", "Days available", "Target points", "Reviews"],
+    [
+      "Editor", "Mail ID", "Slab", "Experience", "Work pattern", "Days available",
+      "Target points", "Reviews",
+    ],
   ];
   c.team.forEach((e) =>
     aoa.push([
-      e.name, e.slab, EXP[e.slab], e.pattern, daysOf(c, e), targetOf(c, e),
+      e.name, e.email ?? "", e.slab, EXP[e.slab], e.pattern, daysOf(c, e), targetOf(c, e),
       e.reviewer ? "yes" : "",
     ])
   );

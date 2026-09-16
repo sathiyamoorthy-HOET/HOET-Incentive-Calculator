@@ -16,7 +16,18 @@ export type Pattern = { name: string; days: number; target: number };
  * `review` is points per minute for reviewing this kind of video, which does
  * not vary by slab: the work is the same whoever does it.
  */
-export type RateRow = { cat: string; r: number[]; review?: number };
+export type RateRow = {
+  cat: string;
+  r: number[];
+  review?: number;
+  /**
+   * What the rate is a rate *of*. "minute" prices the runtime delivered, which
+   * is the norm. "project" pays the rate once per project whatever was — or
+   * was not — uploaded against it: a RAW clip edit is handed over on a drive,
+   * so the report has no deliverable and no minutes to price.
+   */
+  unit?: "minute" | "project";
+};
 
 export type Editor = {
   name: string;
@@ -28,6 +39,8 @@ export type Editor = {
   reviewer?: boolean;
   /** Set to give this person a target of their own instead of the pattern's. */
   target?: number | null;
+  /** Where the payout goes. Shown beside the name; the report never uses it. */
+  email?: string | null;
 };
 
 /**
@@ -144,6 +157,12 @@ export type SourceRow = {
   settle?: Settlement;
   /** Whether a review has actually happened, from the deliverable's status. */
   reviewed?: boolean;
+  /**
+   * This row is a whole project that had no deliverable in the report, not a
+   * video. It has no minutes, and earns only if its category is priced per
+   * project; otherwise it is a project nobody has delivered on yet.
+   */
+  project?: boolean;
 };
 
 /** What the parser made of the file, so the Results page can explain itself. */
@@ -221,6 +240,8 @@ export type EditorResult = {
   reviewed: number;
   /** True when this person is on the team list as a reviewer. */
   isReviewer: boolean;
+  /** Projects paid at a per-project rate. For those categories `byCat` counts projects, not minutes. */
+  projects: number;
   /** Points taken off for revisions, before target and incentive. */
   deducted: number;
   /** Deliverables paid for in an earlier month, so not paid for again here. */

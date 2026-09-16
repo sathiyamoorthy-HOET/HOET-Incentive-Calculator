@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   compute,
-  deliverableKey,
+  settleKey,
+  unitOf,
   ledgerAfter,
   matchEditor,
   rateFor,
@@ -181,7 +182,7 @@ export async function saveRun(
 
     const c = compute(input.config, rows);
     const t = totals(c.out);
-    const active = c.out.filter((r) => r.mins > 0.05).length;
+    const active = c.out.filter((r) => r.mins > 0.05 || r.projects > 0).length;
     const cleared = c.out.filter((r) => r.surplus > 0).length;
 
     const { data: run, error } = await supabase
@@ -245,10 +246,15 @@ export async function saveRun(
     const after = ledgerAfter(input.config, input.rows, ledger);
     const meta = new Map<string, { code: string; no: string; editor: string }>();
     for (const r of rows) {
-      const key = deliverableKey(r);
+      const key = settleKey(input.config, r);
       if (!key || meta.has(key)) continue;
       const m = matchEditor(input.config, r.raw);
-      meta.set(key, { code: r.code as string, no: r.did as string, editor: m.e?.name || r.raw });
+      /* "project" in place of a number when the whole project was the thing paid for. */
+      meta.set(key, {
+        code: r.code as string,
+        no: key.slice(key.indexOf("#") + 1),
+        editor: m.e?.name || r.raw,
+      });
     }
 
     const entries = [...meta.entries()].map(([key, m]) => {
@@ -503,6 +509,8 @@ export type EditorCat = {
   points: number;
   /** "review" lines are videos this person reviewed for somebody else. */
   kind: "edit" | "review" | "untyped";
+  /** For a per-project category, `minutes` is a count of projects. */
+  unit?: "minute" | "project";
 };
 
 export type EditorMonth = {
@@ -596,6 +604,7 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
         deducted,
         points: rate ? Math.round(minutes * rate - deducted) : 0,
         kind: "edit",
+        unit: cat === NOTPAY ? "minute" : unitOf(config, cat),
       });
       if (rate) every.add(cat);
     }

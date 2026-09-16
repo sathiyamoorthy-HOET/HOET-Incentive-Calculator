@@ -176,6 +176,8 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
 
   const rows: SourceRow[] = [];
   const approvers = new Map<string, Set<string>>();
+  /* Projects with at least one priced deliverable. */
+  const priced = new Set<string>();
   let orphans = 0;
 
   for (let i = 1; i < d.aoa.length; i++) {
@@ -208,6 +210,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       approvers.set(code, set);
     }
 
+    priced.add(code);
     rows.push({
       raw: who,
       type: type || null,
@@ -233,6 +236,28 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
     identity.set(key, (identity.get(key) || 0) + 1);
   }
   const ambiguous = [...identity.values()].filter((n) => n > 1).reduce((a, n) => a + n, 0);
+  const deliverables = rows.length;
+
+  /* A project with nothing uploaded against it is still work when its
+     category is paid by the project rather than the minute: a RAW clip edit
+     is handed over on a drive, and Orbitova never sees a deliverable. One row
+     per such project, with no minutes. Whether it earns a fee or is simply a
+     project nobody has delivered on yet is the rate card's call, in compute.
+     Orbitova writes an em dash for an unassigned project. */
+  for (const [code, who] of editor) {
+    if (priced.has(code) || who === "\u2014" || who === "-") continue;
+    rows.push({
+      raw: who,
+      type: projectType.get(code) || null,
+      mins: 0,
+      rev: 0,
+      reviewer: reviewer.get(code) || null,
+      reviewed: false,
+      code,
+      did: null,
+      project: true,
+    });
+  }
 
   return {
     ok: true,
@@ -250,7 +275,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
         .map(([code]) => code),
       codeColumn: ci >= 0 ? d.head[ci] || null : null,
       idColumn: di >= 0 ? d.head[di] || null : null,
-      deliverables: rows.length,
+      deliverables,
       ambiguous,
     },
   };

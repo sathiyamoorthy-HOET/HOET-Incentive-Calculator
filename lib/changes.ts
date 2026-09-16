@@ -33,7 +33,8 @@ const rateSnap = (c: Config): Snap =>
     c.rates.map((r) => [
       r.cat,
       `A ${n(r.r[0] ?? 0)} · B ${n(r.r[1] ?? 0)} · C ${n(r.r[2] ?? 0)} · D ${n(r.r[3] ?? 0)}` +
-        ` · review ${n(r.review ?? 0)}`,
+        ` · review ${n(r.review ?? 0)}` +
+        (r.unit === "project" ? " · per project" : ""),
     ])
   );
 
@@ -58,6 +59,7 @@ const teamSnap = (c: Config): Snap =>
         e.days == null ? "standard days" : `${n(e.days)} days`,
         e.target == null ? "pattern target" : `target ${n(e.target)}`,
         e.reviewer ? "reviews" : "edits",
+        e.email?.trim() ? e.email.trim() : "no mail ID",
         `known as ${[...e.alias].sort().join(", ") || "nothing else"}`,
       ].join(" · "),
     ])

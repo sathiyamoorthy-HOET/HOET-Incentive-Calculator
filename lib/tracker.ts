@@ -9,7 +9,7 @@ import { Computed, Config, DATE_BASES, EXP, NOTPAY, Period, PricedLine, SourceRo
  *
  * Every figure that can be a formula is one, with the app's own number cached
  * beside it, so the file opens with the right values anywhere and still
- * recalculates when a dedication point is typed in: the tracker total, the Parent
+ * recalculates when a recognition point is typed in: the tracker total, the Parent
  * row, points above target and the incentive all follow.
  *
  * ExcelJS rather than SheetJS because the file is read by people, and the
@@ -82,7 +82,7 @@ const byDate = (a: PricedLine, b: PricedLine) =>
 
 const TCOLS = [
   "Video Name", "Assigned By", "Type of Video/Work", "Approved Video Link", "Assigned Date",
-  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points", "Dedication Points", "Total Points",
+  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points", "Recognition Points", "Total Points",
 ];
 const TWIDTHS = [44, 22, 34, 18, 13, 14, 13, 10, 11, 10, 12, 12];
 
@@ -261,7 +261,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     ws.getCell("C2").value = EXP[e.slab];
     ws.getCell("A3").value =
       `Work in ${month}` + (period ? ` (projects with ${basisLabel.toLowerCase()} date ${period.from} to ${period.to})` : "") +
-      ". Yellow cells (Dedication Points) are for internal use — type a number and the Parent's dedication incentive follows.";
+      ". Yellow cells (Recognition Points) are for internal use — type a number and the Parent's recognition incentive follows.";
     writeHead(ws, 4, TCOLS);
 
     let r = 5;
@@ -315,7 +315,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   parent.getCell("A1").font = { bold: true, size: 14 };
   parent.getCell("A2").value =
     "Click an editor's name to open their tracker, and a video's status to open its project in Orbitova. " +
-    "Dedication Points (yellow) are internal: type a number on the tracker and the dedication incentive here follows, worked out on the same pay ladder. " +
+    "Recognition Points (yellow) are internal: type a number on the tracker and the recognition incentive here follows, worked out on the same pay ladder. " +
     "Held = no " + basisLabel.toLowerCase() + " date in the export; listed on the Held Projects sheet, not counted.";
   parent.getCell("A2").font = { bold: true, size: 10 };
   parent.getCell("A2").alignment = { wrapText: true, vertical: "top" };
@@ -325,7 +325,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   const PCOLS = [
     "Editor Name", "Slab", ...parentCats, "Total Videos", "Total Video Minutes", "Points",
     "Target", "Above Target", "Performance Incentive (₹)",
-    "Dedication Points", "Dedication Incentive (₹)", "Total Incentive (₹)",
+    "Recognition Points", "Recognition Incentive (₹)", "Total Incentive (₹)",
   ];
   writeHead(parent, 4, PCOLS);
   parent.getRow(4).height = 42;
@@ -377,8 +377,8 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(pr, cTg).value = e.target;
     parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cP)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
     parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
-    /* Dedication points earn on the same ladder, as if the points had been
-       scored: what the ladder pays on earned plus dedication, less what it
+    /* Recognition points earn on the same ladder, as if the points had been
+       scored: what the ladder pays on earned plus recognition, less what it
        already pays on earned. So an editor just short of target is lifted
        over it, and one already over moves up the rungs. */
     parent.getCell(pr, cG).value = sh ? { formula: `${sh}$K$${ref!.total}`, result: 0 } : 0;
@@ -494,9 +494,9 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
       ? "Points above target are paid in rungs: " + bands.map((b, i) => {
           const to = i + 1 < bands.length ? bands[i + 1].from : null;
           return (to === null ? `+${b.from} and above` : `+${b.from} to +${to}`) + ` at ₹${b.rate} a point`;
-        }).join("; ") + ". The Parent sheet works it out from Points, before any dedication points."
+        }).join("; ") + ". The Parent sheet works it out from Points, before any recognition points."
       : "No payout ladder is set."],
-    ["Dedication Points", "Internal. Yellow cells on the trackers are for you to fill. The Parent pays them on the same ladder: Dedication Incentive is what the ladder pays on earned plus dedication points, less what it already pays on earned; Total Incentive adds the two."],
+    ["Recognition Points", "Internal. Yellow cells on the trackers are for you to fill. The Parent pays them on the same ladder: Recognition Incentive is what the ladder pays on earned plus recognition points, less what it already pays on earned; Total Incentive adds the two."],
     ["Type mapping", mapping || "None."],
     ["Editor matching", "Names in the export are matched to the team list as the app does; names it could not match are listed on the Results page, not here."],
   ];

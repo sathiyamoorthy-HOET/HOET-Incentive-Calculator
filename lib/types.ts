@@ -172,6 +172,12 @@ export type SourceRow = {
   created?: string | null;
   assigned?: string | null;
   due?: string | null;
+  /**
+   * When this deliverable itself was uploaded, "YYYY-MM-DD": Orbitova's
+   * "Work Delivered" basis, the one date that belongs to the video rather
+   * than to its project.
+   */
+  delivered?: string | null;
   /** What the video is called in the export, for the per-editor tracker. */
   title?: string | null;
   /** The deliverable's status as exported ("Approved", "Under Review"). */
@@ -183,7 +189,12 @@ export type SourceRow = {
 };
 
 /** The project dates a run can be limited by, with the label each shows as. */
-export const DATE_BASES = { created: "Created", assigned: "Assigned", due: "Due" } as const;
+export const DATE_BASES = {
+  created: "Created",
+  assigned: "Assigned",
+  due: "Due",
+  delivered: "Work delivered",
+} as const;
 export type DateBasis = keyof typeof DATE_BASES;
 
 /** The window a report was cut down to before it was priced. */

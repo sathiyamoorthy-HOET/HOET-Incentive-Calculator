@@ -30,6 +30,10 @@ const DUE_H = ["due", "due date", "deadline"];
 const TITLE_H = ["title", "deliverable name", "video name", "project name"];
 const APPROVED_H = ["approved on", "approved date", "completed", "completion date", "delivered"];
 const LINK_H = ["open in orbitova", "link", "url"];
+/* The deliverable's own date: when the file was uploaded. On Orbitova's
+   Deliverables sheet that is its "Created" column; a project sheet carries
+   "Delivered" for the project as a whole. */
+const UPLOADED_H = ["uploaded", "uploaded on", "upload date", "created", "delivered"];
 
 type Dates = Pick<SourceRow, "created" | "assigned" | "due">;
 
@@ -226,6 +230,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
   const tti = pick(d.head, TITLE_H);
   const pni = pick(d.head, ["project", "project name"]);
   const aoi = pick(d.head, APPROVED_H);
+  const upi = pick(d.head, UPLOADED_H);
   const li = pick(d.head, LINK_H);
   const pti = pick(lookup.s.head, TITLE_H);
   const pli = pick(lookup.s.head, LINK_H);
@@ -307,6 +312,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       code: code || null,
       did: di >= 0 ? cell(r, di) || null : null,
       ...dates.get(code),
+      delivered: upi >= 0 ? isoDate(r[upi]) : null,
       title: videoName(cell(r, pni) || projectTitle.get(code) || "", cell(r, tti)),
       status: status || null,
       approved: aoi >= 0 ? isoDate(r[aoi]) : null,
@@ -408,6 +414,7 @@ function fromProjects(sheets: Sheet[]): ParseResult {
   const du = pick(best.s.head, DUE_H);
   const tti = pick(best.s.head, TITLE_H);
   const li = pick(best.s.head, LINK_H);
+  const dl = pick(best.s.head, ["delivered", "delivered on"]);
   const rows: SourceRow[] = [];
   for (let i = 1; i < best.s.aoa.length; i++) {
     const r = best.s.aoa[i];
@@ -420,6 +427,7 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       mins: minutesOf(r, best.si, best.mi),
       rev: 0,
       ...datesAt(r, cr, as, du),
+      delivered: dl >= 0 ? isoDate(r[dl]) : null,
       title: cell(r, tti) || null,
       link: linkAt(best.s, i, li),
     });

@@ -61,7 +61,7 @@ export default function RunTab({
       /* Assigned is the house rule; fall back to whichever date the report
          has. The window defaults to the month in the file name, else to the
          dates actually present, so confirming as-is runs the whole month. */
-      const b = (["assigned", "created", "due"] as DateBasis[]).find((k) => span(res.rows, k)) || "assigned";
+      const b = (["assigned", "created", "delivered", "due"] as DateBasis[]).find((k) => span(res.rows, k)) || "assigned";
       const w = monthSpan(f.name) || span(res.rows, b);
       setBasis(b);
       setFrom(w?.[0] || "");
@@ -123,7 +123,7 @@ export default function RunTab({
     });
   }
 
-  const hasDates = !!pending && (["created", "assigned", "due"] as DateBasis[]).some((k) => span(pending.rows, k));
+  const hasDates = !!pending && (Object.keys(DATE_BASES) as DateBasis[]).some((k) => span(pending.rows, k));
   const preview = pending && hasDates && from && to && from <= to ? inPeriod(pending.rows, basis, from, to) : null;
 
   return (
@@ -189,7 +189,7 @@ export default function RunTab({
             </>
           ) : (
             <>
-              {" "}It has no Created, Assigned or Due column, so it cannot be cut to a window.
+              {" "}It has no Created, Assigned, Due or upload date column, so it cannot be cut to a window.
               <div className="row" style={{ marginTop: 12 }}>
                 <button className="btn g" disabled={busy} onClick={() => run(true)}>
                   {busy ? <span className="spin" /> : "Price the whole report"}

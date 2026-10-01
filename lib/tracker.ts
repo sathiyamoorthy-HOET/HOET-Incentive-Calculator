@@ -127,7 +127,14 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     rc.getCell(bandRow + 1 + i, 1).value = to === null ? "+" + b.from + " and above" : "+" + b.from + " to +" + to;
     rc.getCell(bandRow + 1 + i, 2).value = b.rate;
   });
-  const patRow = bandRow + bands.length + 2;
+  /* What a kudos point pays: seeded from the first rung, and yellow because
+     it is the one number on this sheet meant to be changed by hand. */
+  const kudosRow = bandRow + bands.length + 1;
+  rc.getCell(kudosRow, 1).value = "Kudos, ₹ per point";
+  rc.getCell(kudosRow, 1).font = { bold: true };
+  rc.getCell(kudosRow, 2).value = bands[0]?.rate ?? 0;
+  rc.getCell(kudosRow, 2).fill = fill(YELLOW);
+  const patRow = kudosRow + 2;
   rc.getCell(patRow, 1).value = "Work pattern";
   rc.getCell(patRow, 2).value = "Standard days";
   rc.getCell(patRow, 3).value = "Target points";
@@ -151,6 +158,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   const RATES = RC + "$B$2:$E$" + (nCat + 1);
   const SLABS = RC + "$B$1:$E$1";
   const LADDER = RC + "$B$" + ladderRow + ":$" + col(ladder.length + 1) + "$" + ladderRow;
+  const KUDOS_RATE = RC + "$B$" + kudosRow;
 
   /* ------------------------------------------------------------ trackers */
   const byEditor = new Map<string, PricedLine[]>();
@@ -315,7 +323,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   parent.getCell("A1").font = { bold: true, size: 14 };
   parent.getCell("A2").value =
     "Click an editor's name to open their tracker, and a video's status to open its project in Orbitova. " +
-    "Kudos Points (yellow) are internal: type a number on the tracker and the kudos incentive here follows, worked out on the same pay ladder. " +
+    "Kudos Points (yellow) are internal: type a number on the tracker and the kudos incentive here follows, at the rate set on the Rate Card sheet. " +
     "Held = no " + basisLabel.toLowerCase() + " date in the export; listed on the Held Projects sheet, not counted.";
   parent.getCell("A2").font = { bold: true, size: 10 };
   parent.getCell("A2").alignment = { wrapText: true, vertical: "top" };
@@ -377,17 +385,11 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(pr, cTg).value = e.target;
     parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cP)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
     parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
-    /* Kudos points earn on the same ladder, as if the points had been
-       scored: what the ladder pays on earned plus kudos, less what it
-       already pays on earned. So an editor just short of target is lifted
-       over it, and one already over moves up the rungs. */
+    /* Kudos pay a flat rate for every point, target or no target. The rate
+       is a cell on the Rate Card sheet, so it can be changed in the file. */
     parent.getCell(pr, cG).value = sh ? { formula: `${sh}$K$${ref!.total}`, result: 0 } : 0;
     parent.getCell(pr, cG).fill = fill(YELLOW);
-    const withAdj = `MAX(0,ROUND(${col(cP)}${pr}+${col(cG)}${pr}-${col(cTg)}${pr},1))`;
-    parent.getCell(pr, cGI).value = {
-      formula: `ROUND(${incentiveFormula(withAdj)},0)-${col(cI)}${pr}`,
-      result: 0,
-    };
+    parent.getCell(pr, cGI).value = { formula: `ROUND(${col(cG)}${pr}*${KUDOS_RATE},0)`, result: 0 };
     parent.getCell(pr, cTI).value = { formula: `${col(cI)}${pr}+${col(cGI)}${pr}`, result: e.incentive };
     parent.getCell(pr, cTI).font = { bold: true };
     for (const i of [cI, cGI, cTI]) parent.getCell(pr, i).numFmt = "#,##0";
@@ -496,7 +498,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
           return (to === null ? `+${b.from} and above` : `+${b.from} to +${to}`) + ` at ₹${b.rate} a point`;
         }).join("; ") + ". The Parent sheet works it out from Points, before any kudos points."
       : "No payout ladder is set."],
-    ["Kudos Points", "Internal. Yellow cells on the trackers are for you to fill. The Parent pays them on the same ladder: Kudos Incentive is what the ladder pays on earned plus kudos points, less what it already pays on earned; Total Incentive adds the two."],
+    ["Kudos Points", "Internal. Yellow cells on the trackers are for you to fill. Every kudos point pays the rate in the yellow cell on the Rate Card sheet (₹" + (bands[0]?.rate ?? 0) + " to start with), whether or not the editor cleared target; Total Incentive adds it to the performance incentive."],
     ["Type mapping", mapping || "None."],
     ["Editor matching", "Names in the export are matched to the team list as the app does; names it could not match are listed on the Results page, not here."],
   ];

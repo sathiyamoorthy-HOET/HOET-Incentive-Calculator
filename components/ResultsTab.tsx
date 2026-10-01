@@ -6,6 +6,7 @@ import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals, unitOf
 import { exportRun } from "@/lib/export";
 import { ActiveRun, Computed, Config, DATE_BASES, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
+import { parseMonth } from "@/lib/months";
 
 export default function ResultsTab({
   config,
@@ -13,6 +14,7 @@ export default function ResultsTab({
   run,
   result,
   month,
+  setMonth,
   update,
   onRerunLive,
   onSaved,
@@ -23,6 +25,8 @@ export default function ResultsTab({
   run: ActiveRun | null;
   result: Computed | null;
   month: string;
+  /** Lets the run be given its month right here, beside Save, when it has none. */
+  setMonth?: (m: string) => void;
   update: (fn: (draft: Config) => void) => void;
   onRerunLive: () => void;
   onSaved: (id: number) => void;
@@ -55,6 +59,9 @@ export default function ResultsTab({
   const affected = o.filter((r) => r.untyped > 0.05).sort((a, b) => b.untyped - a.untyped);
   const untypedTotal = round(result.untypedMins, 1);
   const readOnly = !!run.snapshot;
+  /* A run cannot be saved without its month, and the header box is easy to
+     miss, so ask for it where the Save button is. */
+  const noMonth = !readOnly && !!setMonth && !parseMonth(month) && !parseMonth(run.fileName);
   /* A whole run scoring zero is almost always this: the export had no column
      naming the kind of video, so every minute is unpriced. Say it at the top,
      with the columns the file did have, instead of leaving a zero to explain
@@ -213,8 +220,19 @@ export default function ResultsTab({
         <button className="btn g" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
           Download spreadsheet
         </button>
+        {noMonth && (
+          <input
+            className="fld-in wide"
+            type="text"
+            value={month}
+            onChange={(e) => setMonth!(e.target.value)}
+            placeholder="Month, e.g. September 2026"
+            aria-label="Month this run covers"
+            style={{ width: 220 }}
+          />
+        )}
         {!readOnly && (
-          <button className="btn o" onClick={doSave} disabled={saving}>
+          <button className="btn o" onClick={doSave} disabled={saving || noMonth} title={noMonth ? "Type the month first" : undefined}>
             {saving ? <span className="spin" /> : run.savedId ? "Save again" : "Save this run"}
           </button>
         )}

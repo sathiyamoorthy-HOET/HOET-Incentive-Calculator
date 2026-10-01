@@ -36,6 +36,7 @@ export function RunPanel() {
         run={run}
         result={result}
         month={month}
+        setMonth={setMonth}
         update={update}
         onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
         onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
@@ -47,11 +48,11 @@ export function RunPanel() {
   return (
     <RunTab
       onLoaded={async (rows, fileName, source) => {
-        /* The report's file name carries the period it covers, so fill the
-           month from it rather than leaving a run unlabelled. Only when the
-           box is empty: a month someone typed is never overwritten. */
+        /* The window just confirmed says which month this is; failing that
+           the file name usually carries the period. Only when the box is
+           empty: a month someone typed is never overwritten. */
         if (!month.trim()) {
-          const m = parseMonth(fileName);
+          const m = parseMonth(source.period?.to) || parseMonth(fileName);
           if (m) setMonth(monthName(m));
         }
 

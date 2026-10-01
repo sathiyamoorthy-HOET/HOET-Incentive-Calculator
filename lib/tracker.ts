@@ -324,7 +324,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
 
   const PCOLS = [
     "Editor Name", "Slab", ...parentCats, "Total Videos", "Total Video Minutes", "Points",
-    "Target", "Above Target", "Incentive (₹)",
+    "Target", "Above Target", "Performance Incentive (₹)",
     "Dedication Points", "Dedication Incentive (₹)", "Total Incentive (₹)",
   ];
   writeHead(parent, 4, PCOLS);

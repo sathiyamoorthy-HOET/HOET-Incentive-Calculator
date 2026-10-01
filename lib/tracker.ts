@@ -9,7 +9,7 @@ import { Computed, Config, DATE_BASES, EXP, NOTPAY, Period, PricedLine, SourceRo
  *
  * Every figure that can be a formula is one, with the app's own number cached
  * beside it, so the file opens with the right values anywhere and still
- * recalculates when a grace point is typed in: the tracker total, the Parent
+ * recalculates when an adjustment point is typed in: the tracker total, the Parent
  * row, points above target and the incentive all follow.
  *
  * ExcelJS rather than SheetJS because the file is read by people, and the
@@ -82,7 +82,7 @@ const byDate = (a: PricedLine, b: PricedLine) =>
 
 const TCOLS = [
   "Video Name", "Assigned By", "Type of Video/Work", "Approved Video Link", "Assigned Date",
-  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points", "Grace Points", "Total Points",
+  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points", "Adjustment Points", "Total Points",
 ];
 const TWIDTHS = [44, 22, 34, 18, 13, 14, 13, 10, 11, 10, 12, 12];
 
@@ -261,7 +261,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     ws.getCell("C2").value = EXP[e.slab];
     ws.getCell("A3").value =
       `Work in ${month}` + (period ? ` (projects with ${basisLabel.toLowerCase()} date ${period.from} to ${period.to})` : "") +
-      ". Yellow cells (Grace Points) are for internal use — type a number and Total Points updates.";
+      ". Yellow cells (Adjustment Points) are for internal use — type a number and the Parent's adjustment incentive follows.";
     writeHead(ws, 4, TCOLS);
 
     let r = 5;
@@ -315,7 +315,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   parent.getCell("A1").font = { bold: true, size: 14 };
   parent.getCell("A2").value =
     "Click an editor's name to open their tracker, and a video's status to open its project in Orbitova. " +
-    "Grace Points (yellow) are internal: type a number on the tracker and every total here follows, incentive included. " +
+    "Adjustment Points (yellow) are internal: type a number on the tracker and the adjustment incentive here follows, worked out on the same pay ladder. " +
     "Held = no " + basisLabel.toLowerCase() + " date in the export; listed on the Held Projects sheet, not counted.";
   parent.getCell("A2").font = { bold: true, size: 10 };
   parent.getCell("A2").alignment = { wrapText: true, vertical: "top" };
@@ -324,12 +324,14 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
 
   const PCOLS = [
     "Editor Name", "Slab", ...parentCats, "Total Videos", "Total Video Minutes", "Points",
-    "Grace Points Given", "Total Points", "Target", "Above Target", "Incentive (₹)",
+    "Target", "Above Target", "Incentive (₹)",
+    "Adjustment Points", "Adjustment Incentive (₹)", "Total Incentive (₹)",
   ];
   writeHead(parent, 4, PCOLS);
   parent.getRow(4).height = 42;
   const cV = 3 + parentCats.length; // Total Videos
-  const cM = cV + 1, cP = cV + 2, cG = cV + 3, cT = cV + 4, cTg = cV + 5, cA = cV + 6, cI = cV + 7;
+  const cM = cV + 1, cP = cV + 2, cTg = cV + 3, cA = cV + 4, cI = cV + 5;
+  const cG = cV + 6, cGI = cV + 7, cTI = cV + 8;
 
   /* The ladder as a formula: each rung pays for the points inside it. */
   const incentiveFormula = (above: string) =>
@@ -372,22 +374,31 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     const pts = round(lines.reduce((a, l) => a + l.pts, 0), 1);
     parent.getCell(pr, cM).value = sh ? { formula: `${sh}$G$${ref!.total}`, result: mins } : mins;
     parent.getCell(pr, cP).value = sh ? { formula: `ROUND(${sh}$J$${ref!.total},1)`, result: pts } : pts;
+    parent.getCell(pr, cTg).value = e.target;
+    parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cP)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
+    parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
+    /* The adjustment earns on the same ladder, as if the points had been
+       scored: what the ladder pays on earned plus adjustment, less what it
+       already pays on earned. So an editor just short of target is lifted
+       over it, and one already over moves up the rungs. */
     parent.getCell(pr, cG).value = sh ? { formula: `${sh}$K$${ref!.total}`, result: 0 } : 0;
     parent.getCell(pr, cG).fill = fill(YELLOW);
-    parent.getCell(pr, cT).value = { formula: `${col(cP)}${pr}+${col(cG)}${pr}`, result: pts };
-    parent.getCell(pr, cT).font = { bold: true };
-    parent.getCell(pr, cTg).value = e.target;
-    parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cT)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
-    parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
-    parent.getCell(pr, cI).numFmt = "#,##0";
-    for (const i of [cM, cP, cG, cT, cA]) parent.getCell(pr, i).numFmt = "0.0";
+    const withAdj = `MAX(0,ROUND(${col(cP)}${pr}+${col(cG)}${pr}-${col(cTg)}${pr},1))`;
+    parent.getCell(pr, cGI).value = {
+      formula: `ROUND(${incentiveFormula(withAdj)},0)-${col(cI)}${pr}`,
+      result: 0,
+    };
+    parent.getCell(pr, cTI).value = { formula: `${col(cI)}${pr}+${col(cGI)}${pr}`, result: e.incentive };
+    parent.getCell(pr, cTI).font = { bold: true };
+    for (const i of [cI, cGI, cTI]) parent.getCell(pr, i).numFmt = "#,##0";
+    for (const i of [cM, cP, cG, cA]) parent.getCell(pr, i).numFmt = "0.0";
     row.commit();
     if (!nVid && pts < 0.05) zero.push(`${e.name} (${e.slab})`);
     pr++;
   }
   const tot = pr;
   parent.getCell(tot, 1).value = `Total · ${result.out.length} editors`;
-  for (let i = 3; i <= cI; i++) {
+  for (let i = 3; i <= cTI; i++) {
     const L = col(i);
     const value = result.out.reduce((a, e) => {
       const v = parent.getCell(5 + result.out.indexOf(e), i).value;
@@ -396,9 +407,9 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     }, 0);
     const cell = parent.getCell(tot, i);
     cell.value = { formula: `SUM(${L}5:${L}${tot - 1})`, result: round(value, 2) };
-    cell.numFmt = i === cI ? "#,##0" : i >= cM ? "0.0" : "General";
+    cell.numFmt = i >= cI && i !== cG ? "#,##0" : i >= cM ? "0.0" : "General";
   }
-  for (let i = 1; i <= cI; i++) {
+  for (let i = 1; i <= cTI; i++) {
     parent.getCell(tot, i).fill = fill(TOTAL);
     parent.getCell(tot, i).font = { bold: true };
   }
@@ -406,7 +417,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(tot + 2, 1).value = `No priced video in the report (${zero.length}): ${zero.join(", ")}`;
     parent.getCell(tot + 2, 1).font = { italic: true, color: { argb: "FF7F7F7F" } };
   }
-  const pw = [28, 8, ...parentCats.map(() => 13), 11, 12, 10, 11, 11, 9, 11, 13];
+  const pw = [28, 8, ...parentCats.map(() => 13), 11, 12, 10, 9, 11, 13, 12, 14, 14];
   pw.forEach((w, i) => (parent.getColumn(i + 1).width = w));
   parent.views = [{ state: "frozen", xSplit: 2, ySplit: 4 }];
 
@@ -483,9 +494,9 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
       ? "Points above target are paid in rungs: " + bands.map((b, i) => {
           const to = i + 1 < bands.length ? bands[i + 1].from : null;
           return (to === null ? `+${b.from} and above` : `+${b.from} to +${to}`) + ` at ₹${b.rate} a point`;
-        }).join("; ") + ". The Parent sheet works it out from Total Points, so grace points change it."
+        }).join("; ") + ". The Parent sheet works it out from Points, before any adjustment."
       : "No payout ladder is set."],
-    ["Grace Points", "Internal. Yellow cells are for you to fill; Total Points = Points + Grace Points, on the tracker and on the Parent."],
+    ["Adjustment Points", "Internal. Yellow cells on the trackers are for you to fill. The Parent pays them on the same ladder: Adjustment Incentive is what the ladder pays on earned plus adjustment points, less what it already pays on earned; Total Incentive adds the two."],
     ["Type mapping", mapping || "None."],
     ["Editor matching", "Names in the export are matched to the team list as the app does; names it could not match are listed on the Results page, not here."],
   ];

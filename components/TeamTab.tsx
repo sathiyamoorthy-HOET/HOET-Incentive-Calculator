@@ -85,7 +85,7 @@ export default function TeamTab({
   }
 
   return (
-    <section className="panel on narrow">
+    <section className="panel on">
       <h2>Team</h2>
       <p className="sub">
         Slab sets the points rate. Work pattern sets the monthly target. Reduce days available for

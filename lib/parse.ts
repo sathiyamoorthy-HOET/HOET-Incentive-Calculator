@@ -24,6 +24,12 @@ const DID_H = ["deliverable #", "deliverable no", "deliverable number", "#"];
 const CREATED_H = ["created", "created on", "created date", "creation date"];
 const ASSIGNED_H = ["assigned", "assigned on", "assigned date", "assign date"];
 const DUE_H = ["due", "due date", "deadline"];
+/* What a video is called, where it was approved, and the export's own link
+   back to Orbitova. None of these price anything; they are carried for the
+   per-editor tracker in the detailed report. */
+const TITLE_H = ["title", "deliverable name", "video name", "project name"];
+const APPROVED_H = ["approved on", "approved date", "completed", "completion date", "delivered"];
+const LINK_H = ["open in orbitova", "link", "url"];
 
 type Dates = Pick<SourceRow, "created" | "assigned" | "due">;
 
@@ -52,15 +58,15 @@ function datesAt(r: unknown[] | undefined, ci: number, ai: number, di: number): 
  */
 export function inPeriod(rows: SourceRow[], basis: DateBasis, from: string, to: string) {
   const kept: SourceRow[] = [];
+  const held: SourceRow[] = [];
   let dropped = 0;
-  let undated = 0;
   for (const r of rows) {
     const d = r[basis];
-    if (!d) undated++;
+    if (!d) held.push(r);
     else if (d < from || d > to) dropped++;
     else kept.push(r);
   }
-  return { rows: kept, dropped, undated };
+  return { rows: kept, dropped, undated: held.length, held };
 }
 
 /**
@@ -72,6 +78,17 @@ function isReviewed(status: string): boolean {
   const t = status.trim().toLowerCase();
   if (!t) return false;
   return t.includes("approv") || t.includes("revision");
+}
+
+/**
+ * What to call a video: the project's name, since that is what people know
+ * it by, with the deliverable's own title after it when Orbitova gave it one
+ * beyond the stock "Deliverable 01".
+ */
+function videoName(project: string, title: string): string | null {
+  const own = title && !/^deliverable\s*\d*$/i.test(title) && title !== project ? title : "";
+  const name = project ? (own ? project + " — " + own : project) : own;
+  return name || null;
 }
 
 /** Finds a column by exact header first, then by substring. -1 when absent. */
@@ -92,7 +109,13 @@ export type ParseResult =
   | { ok: true; rows: SourceRow[]; source: ParsedSource }
   | { ok: false; error: string };
 
-type Sheet = { name: string; aoa: unknown[][]; head: string[] };
+type Sheet = { name: string; aoa: unknown[][]; head: string[]; ws: XLSX.WorkSheet };
+
+/* sheet_to_json drops hyperlinks, so a link is read off the cell itself.
+   Set when a report is read, since SheetJS is loaded only then. */
+let utils: typeof XLSX.utils | null = null;
+const linkAt = (s: Sheet, r: number, c: number): string | null =>
+  c >= 0 && utils ? s.ws[utils.encode_cell({ r, c })]?.l?.Target || null : null;
 
 const cell = (r: unknown[] | undefined, i: number) =>
   r && i >= 0 && r[i] != null ? String(r[i]).trim() : "";
@@ -121,6 +144,7 @@ function minutesOf(r: unknown[], si: number, mi: number): number {
  */
 export async function parseReport(data: ArrayBuffer): Promise<ParseResult> {
   const xlsx = await import("xlsx");
+  utils = xlsx.utils;
   let wb: XLSX.WorkBook;
   try {
     wb = xlsx.read(new Uint8Array(data), { type: "array" });
@@ -136,6 +160,7 @@ export async function parseReport(data: ArrayBuffer): Promise<ParseResult> {
       name,
       aoa,
       head: ((aoa[0] || []) as unknown[]).map((h) => String(h ?? "").trim()),
+      ws: wb.Sheets[name],
     });
   }
 
@@ -198,17 +223,28 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
   const sti = pick(d.head, STATUS_H);
   const api = pick(d.head, ["approved by", "approver"]);
   const di = pick(d.head, DID_H);
+  const tti = pick(d.head, TITLE_H);
+  const pni = pick(d.head, ["project", "project name"]);
+  const aoi = pick(d.head, APPROVED_H);
+  const li = pick(d.head, LINK_H);
+  const pti = pick(lookup.s.head, TITLE_H);
+  const pli = pick(lookup.s.head, LINK_H);
 
   /* Editor, reviewer, fallback type and dates, by project code. */
   const editor = new Map<string, string>();
   const reviewer = new Map<string, string>();
   const projectType = new Map<string, string>();
+  const projectTitle = new Map<string, string>();
+  const projectLink = new Map<string, string>();
   const dates = new Map<string, Dates>();
   for (let i = 1; i < lookup.s.aoa.length; i++) {
     const r = lookup.s.aoa[i];
     const code = cell(r, lookup.ci);
     if (!code) continue;
     if (!dates.has(code)) dates.set(code, datesAt(r, lookup.cr, lookup.as, lookup.du));
+    if (!projectTitle.has(code) && cell(r, pti)) projectTitle.set(code, cell(r, pti));
+    const pl = linkAt(lookup.s, i, pli);
+    if (pl && !projectLink.has(code)) projectLink.set(code, pl);
     const who = cell(r, lookup.ni);
     if (who && !editor.has(code)) editor.set(code, who);
     const mgr = cell(r, lookup.mi);
@@ -271,6 +307,10 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       code: code || null,
       did: di >= 0 ? cell(r, di) || null : null,
       ...dates.get(code),
+      title: videoName(cell(r, pni) || projectTitle.get(code) || "", cell(r, tti)),
+      status: status || null,
+      approved: aoi >= 0 ? isoDate(r[aoi]) : null,
+      link: linkAt(d, i, li) || projectLink.get(code) || null,
     });
   }
 
@@ -308,6 +348,8 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       did: null,
       project: true,
       ...dates.get(code),
+      title: projectTitle.get(code) || null,
+      link: projectLink.get(code) || null,
     });
   }
 
@@ -364,6 +406,8 @@ function fromProjects(sheets: Sheet[]): ParseResult {
   const cr = pick(best.s.head, CREATED_H);
   const as = pick(best.s.head, ASSIGNED_H);
   const du = pick(best.s.head, DUE_H);
+  const tti = pick(best.s.head, TITLE_H);
+  const li = pick(best.s.head, LINK_H);
   const rows: SourceRow[] = [];
   for (let i = 1; i < best.s.aoa.length; i++) {
     const r = best.s.aoa[i];
@@ -376,6 +420,8 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       mins: minutesOf(r, best.si, best.mi),
       rev: 0,
       ...datesAt(r, cr, as, du),
+      title: cell(r, tti) || null,
+      link: linkAt(best.s, i, li),
     });
   }
 

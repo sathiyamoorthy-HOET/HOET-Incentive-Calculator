@@ -6,54 +6,9 @@ import { inr, num, round } from "@/lib/calc";
 import { monthName } from "@/lib/months";
 import { STATUS } from "@/lib/types";
 import { exportEditor } from "@/lib/export";
-import type { EditorCat, EditorMonth, EditorReport } from "@/app/actions";
-
-/** The video-type table, the same five columns Results opens under a name. */
-function Breakdown({ cats }: { cats: EditorCat[] }) {
-  if (!cats.length) {
-    return (
-      <span style={{ color: "var(--muted)" }}>No work recorded against this editor.</span>
-    );
-  }
-  return (
-    <table style={{ width: "auto", minWidth: 460 }}>
-      <thead>
-        <tr>
-          <th>Video type</th>
-          <th className="r">Minutes</th>
-          <th className="r">Rate</th>
-          <th className="r">Deducted</th>
-          <th className="r">Points</th>
-        </tr>
-      </thead>
-      <tbody>
-        {cats.map((c, i) => (
-          <tr key={c.kind + c.cat + i}>
-            <td style={c.kind === "untyped" ? { color: "var(--rose)" } : undefined}>
-              {c.cat}
-              {c.kind === "review" && (
-                <span className="muted" style={{ fontSize: 11.5 }}>
-                  {" · reviewed for others"}
-                </span>
-              )}
-            </td>
-            <td
-              className="r num"
-              style={c.kind === "untyped" ? { color: "var(--rose)" } : undefined}
-            >
-              {c.unit === "project" ? c.minutes + (c.minutes === 1 ? " project" : " projects") : c.minutes}
-            </td>
-            <td className="r num">{c.rate ? c.rate : "—"}</td>
-            <td className="r num" style={c.deducted ? { color: "var(--rose)" } : undefined}>
-              {c.deducted ? "−" + c.deducted : "—"}
-            </td>
-            <td className="r num">{c.points}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+import type { EditorMonth, EditorReport } from "@/app/actions";
+import type { EditorCat } from "@/lib/types";
+import Breakdown from "./Breakdown";
 
 /** What a month cost in rework, spelled out only when there was any. */
 function Rework({ m }: { m: EditorMonth }) {
@@ -79,9 +34,7 @@ function Rework({ m }: { m: EditorMonth }) {
   }
   if (!bits.length) return null;
   return (
-    <p className="sub" style={{ margin: "0 0 10px", fontSize: 12.5 }}>
-      {bits.join(" · ")}
-    </p>
+    <p className="detnote">{bits.join(" · ")}</p>
   );
 }
 
@@ -184,9 +137,19 @@ export default function EditorTab({ report }: { report: EditorReport }) {
                 const st = STATUS[m.status];
                 const isOpen = open.has(i);
                 const rows = [
-                  <tr key={m.runId} className="clk" onClick={() => toggle(i)}>
+                  <tr
+                    key={m.runId}
+                    className={"clk" + (isOpen ? " open" : "")}
+                    aria-expanded={isOpen}
+                    tabIndex={0}
+                    onClick={() => toggle(i)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(i); }
+                    }}
+                  >
                     <td>
-                      <span className="tw">{isOpen ? "▾" : "▸"}</span> {monthName(m.month)}
+                      <span className="tw" aria-hidden="true">▸</span> {monthName(m.month)}
                     </td>
                     <td
                       className="r num"
@@ -233,8 +196,10 @@ export default function EditorTab({ report }: { report: EditorReport }) {
                     <tr key={m.runId + "-det"} className="det on">
                       <td colSpan={8}>
                         <div className="detbox">
-                          <Rework m={m} />
-                          <Breakdown cats={m.cats} />
+                          <div className="detmain">
+                            <Rework m={m} />
+                            <Breakdown cats={m.cats} />
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -266,7 +231,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
             {months.length === 1 ? "month" : "months"}. A rate reads as a dash where it changed
             between months.
           </p>
-          <div className="scroll">
+          <div className="scroll detmain">
             <Breakdown cats={[...lifetime.values()]} />
           </div>
         </div>

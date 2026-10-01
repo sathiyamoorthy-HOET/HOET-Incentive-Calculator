@@ -66,7 +66,7 @@ export default function HistoryTab({ runs }: { runs: RunSummary[] }) {
                       {r.editors_cleared} of {r.editors_delivered}
                     </td>
                     <td className="r num">
-                      <strong style={{ color: "var(--teal)" }}>{inr(r.total_incentive)}</strong>
+                      <strong style={{ color: "var(--emerald)" }}>{inr(r.total_incentive)}</strong>
                     </td>
                     <td className="muted" style={{ fontSize: 12.5 }}>
                       {new Date(r.created_at).toLocaleDateString("en-IN", {

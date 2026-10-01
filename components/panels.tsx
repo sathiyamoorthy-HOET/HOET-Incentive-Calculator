@@ -47,7 +47,7 @@ export function RunPanel() {
 
   return (
     <RunTab
-      onLoaded={async (rows, fileName, source) => {
+      onLoaded={async (rows, fileName, source, held) => {
         /* The window just confirmed says which month this is; failing that
            the file name usually carries the period. Only when the box is
            empty: a month someone typed is never overwritten. */
@@ -61,7 +61,7 @@ export function RunPanel() {
         const settled = await settleUpload(config, rows);
         if (!settled.ok) return settled.error;
 
-        setRun({ rows: settled.rows, fileName, source, snapshot: null, savedId: null });
+        setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null });
         return null;
       }}
     />

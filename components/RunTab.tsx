@@ -29,7 +29,9 @@ export default function RunTab({
   onLoaded: (
     rows: SourceRow[],
     fileName: string,
-    source: ParsedSource
+    source: ParsedSource,
+    /** Rows with no date to judge by, left out of the window but listed in the report. */
+    held: SourceRow[]
   ) => void | Promise<string | null | void>;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -105,14 +107,16 @@ export default function RunTab({
     setError(null);
     let rows = p.rows;
     let source = p.source;
+    let held: SourceRow[] = [];
     if (!all) {
       const cut = inPeriod(p.rows, basis, from, to);
       rows = cut.rows;
+      held = cut.held;
       source = { ...p.source, period: { basis, from, to, kept: cut.rows.length, dropped: cut.dropped, undated: cut.undated } };
     }
     /* Stay busy while the report is settled against what has already been
        paid: the figures on the next page depend on that answer. */
-    Promise.resolve(onLoaded(rows, p.fileName, source)).then((err) => {
+    Promise.resolve(onLoaded(rows, p.fileName, source, held)).then((err) => {
       setBusy(false);
       if (err) setError(err);
       else setPending(null);

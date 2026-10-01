@@ -3,20 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  catsOf,
   compute,
   settleKey,
-  unitOf,
   ledgerAfter,
   matchEditor,
-  rateFor,
-  reviewRateFor,
-  round,
   settleRows,
   totals,
 } from "@/lib/calc";
 import { officialRuns, parseMonth } from "@/lib/months";
-import { NOTPAY } from "@/lib/types";
-import type { Config, Ledger, RunStatus, RunSummary, SourceRow } from "@/lib/types";
+import type { Config, EditorCat, Ledger, RunStatus, RunSummary, SourceRow } from "@/lib/types";
+
+export type { EditorCat };
 
 /** Server Actions are reachable independently of the proxy, so re-check auth. */
 async function requireUser() {
@@ -499,19 +497,6 @@ export async function listAccountability(): Promise<Accountability> {
   };
 }
 
-/** One line of an editor's video-type breakdown, as the Results page shows it. */
-export type EditorCat = {
-  cat: string;
-  minutes: number;
-  /** Points per minute. Zero where nothing is payable, shown as a dash. */
-  rate: number;
-  deducted: number;
-  points: number;
-  /** "review" lines are videos this person reviewed for somebody else. */
-  kind: "edit" | "review" | "untyped";
-  /** For a per-project category, `minutes` is a count of projects. */
-  unit?: "minute" | "project";
-};
 
 export type EditorMonth = {
   runId: number;
@@ -592,44 +577,8 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
        run, so the month simply is not part of their history. */
     if (!me) continue;
 
-    const cats: EditorCat[] = [];
-    for (const cat of Object.keys(me.byCat)) {
-      const minutes = round(me.byCat[cat], 1);
-      const rate = cat === NOTPAY ? 0 : rateFor(config, cat, me.slab);
-      const deducted = round(me.dedByCat[cat] || 0, 1);
-      cats.push({
-        cat,
-        minutes,
-        rate,
-        deducted,
-        points: rate ? Math.round(minutes * rate - deducted) : 0,
-        kind: "edit",
-        unit: cat === NOTPAY ? "minute" : unitOf(config, cat),
-      });
-      if (rate) every.add(cat);
-    }
-    for (const cat of Object.keys(me.revByCat)) {
-      const minutes = round(me.revByCat[cat], 1);
-      const rate = reviewRateFor(config, cat);
-      cats.push({
-        cat,
-        minutes,
-        rate,
-        deducted: 0,
-        points: Math.round(minutes * rate),
-        kind: "review",
-      });
-    }
-    if (me.untyped > 0.05) {
-      cats.push({
-        cat: "No video type recorded",
-        minutes: me.untyped,
-        rate: 0,
-        deducted: 0,
-        points: 0,
-        kind: "untyped",
-      });
-    }
+    const cats = catsOf(config, me);
+    for (const c of cats) if (c.kind === "edit" && c.rate) every.add(c.cat);
 
     months.push({
       runId: run.id,

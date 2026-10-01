@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals, unitOf } from "@/lib/calc";
+import { cats, catsOf, inr, num, payParts, round, totals } from "@/lib/calc";
+import Breakdown from "./Breakdown";
 import { exportRun } from "@/lib/export";
-import { ActiveRun, Computed, Config, DATE_BASES, NOTPAY, STATUS } from "@/lib/types";
+import { exportTracker } from "@/lib/tracker";
+import { ActiveRun, Computed, Config, DATE_BASES, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
 import { parseMonth } from "@/lib/months";
 
@@ -217,8 +219,22 @@ export default function ResultsTab({
             )}
           </div>
         </div>
-        <button className="btn g" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
-          Download spreadsheet
+        <button
+          className="btn g"
+          style={{ marginLeft: "auto" }}
+          title="Parent sheet, one tracker per editor with links to Orbitova, held projects, notes and the rate card"
+          onClick={() =>
+            exportTracker({
+              monthLabel: month,
+              fileName: run.fileName,
+              period: run.source?.period,
+              held: run.held || [],
+              result,
+              config,
+            })
+          }
+        >
+          Download detailed report
         </button>
         {noMonth && (
           <input
@@ -246,8 +262,8 @@ export default function ResultsTab({
       )}
 
       {hasProblems ? (
-        <div className="card" style={{ borderColor: "#F0CFCA" }}>
-          <h3 style={{ color: "var(--red)" }}>Fix these before using the numbers</h3>
+        <div className="card bad">
+          <h3>Fix these before using the numbers</h3>
 
           {result.unmatched.length > 0 && (
             <>
@@ -398,7 +414,7 @@ export default function ResultsTab({
                 Those minutes cannot be priced, so the editors below are scored lower than the work
                 they actually did.{" "}
                 {blocked.length > 0 && (
-                  <span style={{ color: "var(--red)" }}>
+                  <span style={{ color: "var(--rose)" }}>
                     {blocked.length} of them score zero for this reason alone.
                   </span>
                 )}
@@ -463,7 +479,7 @@ export default function ResultsTab({
             Click a row to see the breakdown by video type
           </span>
           <button className="btn o" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
-            Download spreadsheet
+            Download summary sheet
           </button>
         </div>
 
@@ -493,13 +509,22 @@ export default function ResultsTab({
               {o.flatMap((r, i) => {
                 const pc = Math.min(100, Math.round(r.pctv * 100));
                 const st = STATUS[r.status];
-                const keys = Object.keys(r.byCat);
                 const isOpen = open.has(i);
 
                 const rows = [
-                  <tr key={r.name} className="clk" onClick={() => toggle(i)}>
+                  <tr
+                    key={r.name}
+                    className={"clk" + (isOpen ? " open" : "")}
+                    aria-expanded={isOpen}
+                    tabIndex={0}
+                    onClick={() => toggle(i)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(i); }
+                    }}
+                  >
                     <td>
-                      <span className="tw">{isOpen ? "▾" : "▸"}</span> {r.name}
+                      <span className="tw" aria-hidden="true">▸</span> {r.name}
                       {r.isReviewer && (
                         <span className="muted" style={{ fontSize: 11.5 }}> · reviewer</span>
                       )}
@@ -552,7 +577,7 @@ export default function ResultsTab({
                     <td className="r num">{r.surplus > 0 ? Math.round(r.surplus) : "—"}</td>
                     <td className="r num">
                       {r.incentive > 0 ? (
-                        <strong style={{ color: "var(--teal)" }}>{inr(r.incentive)}</strong>
+                        <strong style={{ color: "var(--emerald)" }}>{inr(r.incentive)}</strong>
                       ) : (
                         "—"
                       )}
@@ -568,75 +593,9 @@ export default function ResultsTab({
                     <tr key={r.name + "-det"} className="det on">
                       <td colSpan={12}>
                         <div className="detbox">
-                          {keys.length || r.untyped > 0.05 || r.reviewed ? (
-                            <table style={{ width: "auto", minWidth: 460 }}>
-                              <thead>
-                                <tr>
-                                  <th>Video type</th>
-                                  <th className="r">Minutes</th>
-                                  <th className="r">Rate</th>
-                                  <th className="r">Deducted</th>
-                                  <th className="r">Points</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {keys.map((c) => {
-                                  const mn = round(r.byCat[c], 1);
-                                  const rt = c === NOTPAY ? 0 : rateFor(config, c, r.slab);
-                                  const perProject = c !== NOTPAY && unitOf(config, c) === "project";
-                                  return (
-                                    <tr key={c}>
-                                      <td>{c}</td>
-                                      <td className="r num">
-                                        {perProject ? mn + (mn === 1 ? " project" : " projects") : mn}
-                                      </td>
-                                      <td className="r num">{rt ? rt : "—"}</td>
-                                      <td
-                                        className="r num"
-                                        style={r.dedByCat[c] ? { color: "var(--rose)" } : undefined}
-                                      >
-                                        {r.dedByCat[c] ? "−" + round(r.dedByCat[c], 1) : "—"}
-                                      </td>
-                                      <td className="r num">
-                                        {rt ? Math.round(mn * rt - (r.dedByCat[c] || 0)) : 0}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                {Object.keys(r.revByCat).map((c) => {
-                                  const mn = round(r.revByCat[c], 1);
-                                  const rt = reviewRateFor(config, c);
-                                  return (
-                                    <tr key={"rev-" + c}>
-                                      <td>
-                                        {c}
-                                        <span className="muted" style={{ fontSize: 11.5 }}>
-                                          {" · reviewed for others"}
-                                        </span>
-                                      </td>
-                                      <td className="r num">{mn}</td>
-                                      <td className="r num">{rt || "—"}</td>
-                                      <td className="r">—</td>
-                                      <td className="r num">{Math.round(mn * rt)}</td>
-                                    </tr>
-                                  );
-                                })}
-                                {r.untyped > 0.05 && (
-                                  <tr>
-                                    <td style={{ color: "var(--red)" }}>No video type recorded</td>
-                                    <td className="r num" style={{ color: "var(--rose)" }}>{r.untyped}</td>
-                                    <td className="r">—</td>
-                                    <td className="r">—</td>
-                                    <td className="r num">0</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          ) : (
-                            <span style={{ color: "var(--muted)" }}>
-                              No work recorded against this editor in the report.
-                            </span>
-                          )}
+                          <div className="detmain">
+                            <Breakdown cats={catsOf(config, r)} />
+                          </div>
                           <PaySplit config={config} surplus={r.surplus} />
                         </div>
                       </td>
@@ -677,22 +636,34 @@ export default function ResultsTab({
 function PaySplit({ config, surplus }: { config: Config; surplus: number }) {
   if (surplus <= 0) return null;
   const parts = payParts(config, surplus).filter((p) => p.pts > 0);
-  if (parts.length < 2) return null;
+  if (!parts.length) return null;
   const total = parts.reduce((a, p) => a + p.amount, 0);
   return (
-    <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--muted)" }}>
-      {round(surplus, 1)} points above target:{" "}
-      {parts.map((p, i) => (
-        <span key={p.from}>
-          {i > 0 && " + "}
-          {round(p.pts, 1)} &times; ₹{p.rate}
-          <span style={{ fontSize: 11.5 }}>
-            {" (" + (p.to === null ? "+" + p.from + " and above" : "+" + p.from + " to +" + p.to) + ")"}
-          </span>
-        </span>
-      ))}
-      {" = "}
-      <strong style={{ color: "var(--teal)" }}>{inr(total)}</strong>
+    <div className="detpay">
+      <h4>How the incentive is made</h4>
+      <table>
+        <tbody>
+          {parts.map((p) => (
+            <tr key={p.from}>
+              <td className="muted">
+                {p.to === null ? "+" + p.from + " and above" : "+" + p.from + " to +" + p.to}
+              </td>
+              <td className="r num">
+                {round(p.pts, 1)}
+                <span className="unit">pts</span>
+              </td>
+              <td className="r num muted">× ₹{p.rate}</td>
+              <td className="r num">{inr(p.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={3}>{round(surplus, 1)} points above target</td>
+            <td className="r num pos">{inr(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

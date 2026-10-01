@@ -172,6 +172,14 @@ export type SourceRow = {
   created?: string | null;
   assigned?: string | null;
   due?: string | null;
+  /** What the video is called in the export, for the per-editor tracker. */
+  title?: string | null;
+  /** The deliverable's status as exported ("Approved", "Under Review"). */
+  status?: string | null;
+  /** The day it was approved, "YYYY-MM-DD", when the export says. */
+  approved?: string | null;
+  /** The export's own link back to the project in Orbitova. */
+  link?: string | null;
 };
 
 /** The project dates a run can be limited by, with the label each shows as. */
@@ -235,6 +243,13 @@ export type ParsedSource = {
 /** The report currently on screen, either just uploaded or opened from History. */
 export type ActiveRun = {
   rows: SourceRow[];
+  /**
+   * Rows left out of the window because they carry no date to judge by. Not
+   * priced, but listed in the detailed report so somebody can look them up.
+   * Only a live run has them; a run reopened from History stored its rows
+   * after the cut.
+   */
+  held?: SourceRow[];
   fileName: string;
   /** How the file was read. Absent for a run reopened from History. */
   source?: ParsedSource;
@@ -244,6 +259,20 @@ export type ActiveRun = {
 };
 
 export type RunStatus = "over" | "under" | "blocked" | "none";
+
+/** One line of an editor's video-type breakdown, as Results and the editor page show it. */
+export type EditorCat = {
+  cat: string;
+  minutes: number;
+  /** Points per minute. Zero where nothing is payable, shown as a dash. */
+  rate: number;
+  deducted: number;
+  points: number;
+  /** "review" lines are videos this person reviewed for somebody else. */
+  kind: "edit" | "review" | "untyped";
+  /** For a per-project category, `minutes` is a count of projects. */
+  unit?: "minute" | "project";
+};
 
 export type EditorResult = {
   name: string;
@@ -283,8 +312,36 @@ export type EditorResult = {
   status: RunStatus;
 };
 
+/**
+ * One row of the report as it was priced: which editor it went to, under what
+ * category, and what it earned. The per-video record behind every total in
+ * `out`, so a report can show the videos and not only the sums.
+ */
+export type PricedLine = {
+  editor: string;
+  row: SourceRow;
+  /**
+   * edit: a video priced by the minute. project: a project fee, paid once.
+   * review: credited to the project's manager for reviewing it. carried: paid
+   * for in an earlier month and revised this one, so only the deduction
+   * lands. skipped: nothing new to pay (already paid, or a second cut of a
+   * project already charged). unpriced: no payable category, so nothing.
+   */
+  kind: "edit" | "project" | "review" | "carried" | "skipped" | "unpriced";
+  cat: string | null;
+  /** Points a minute, or for the project; the review rate on a review line. */
+  rate: number;
+  rounds: number;
+  /** Share of the gross taken off for revisions, 0 to 1. */
+  pct: number;
+  gross: number;
+  cut: number;
+  pts: number;
+};
+
 export type Computed = {
   out: EditorResult[];
+  lines: PricedLine[];
   unknownTypes: [string, number][];
   unmatched: [string, { mins: number; best: string | null; score: number }][];
   untypedMins: number;

@@ -2,12 +2,14 @@ import {
   Computed,
   Config,
   Editor,
+  EditorCat,
   EditorResult,
   EXP,
   NOTPAY,
   Pattern,
   PayBand,
   PayPart,
+  PricedLine,
   RateRow,
   Ledger,
   RunStatus,
@@ -83,6 +85,41 @@ export function payBandsOf(c: Config): PayBand[] {
     .filter((b) => b && Number.isFinite(b.from) && b.from >= 0)
     .sort((a, b) => a.from - b.from);
   return bands.length ? bands : [{ from: 0, rate: c.rate || 0 }];
+}
+
+/** An editor's result broken down by video type: edits, then reviews, then any untyped minutes. */
+export function catsOf(c: Config, me: EditorResult): EditorCat[] {
+  const out: EditorCat[] = [];
+  for (const cat of Object.keys(me.byCat)) {
+    const minutes = round(me.byCat[cat], 1);
+    const rate = cat === NOTPAY ? 0 : rateFor(c, cat, me.slab);
+    const deducted = round(me.dedByCat[cat] || 0, 1);
+    out.push({
+      cat,
+      minutes,
+      rate,
+      deducted,
+      points: rate ? Math.round(minutes * rate - deducted) : 0,
+      kind: "edit",
+      unit: cat === NOTPAY ? "minute" : unitOf(c, cat),
+    });
+  }
+  for (const cat of Object.keys(me.revByCat)) {
+    const minutes = round(me.revByCat[cat], 1);
+    const rate = reviewRateFor(c, cat);
+    out.push({ cat, minutes, rate, deducted: 0, points: Math.round(minutes * rate), kind: "review" });
+  }
+  if (me.untyped > 0.05) {
+    out.push({
+      cat: "No video type recorded",
+      minutes: me.untyped,
+      rate: 0,
+      deducted: 0,
+      points: 0,
+      kind: "untyped",
+    });
+  }
+  return out;
 }
 
 /** What each rung of the ladder pays on a given surplus, rungs included. */
@@ -314,6 +351,11 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
   const unknownTypes = new Map<string, number>();
   const unmatched = new Map<string, { mins: number; best: string | null; score: number }>();
   const ignore = c.ignore || [];
+  const lines: PricedLine[] = [];
+  const line = (
+    editor: string, row: SourceRow, kind: PricedLine["kind"], cat: string | null,
+    rate = 0, rounds = 0, pct = 0, gross = 0, cut = 0
+  ) => lines.push({ editor, row, kind, cat, rate, rounds, pct, gross, cut, pts: gross - cut });
 
   const blank = (): Acc => ({
     mins: 0, pts: 0, byCat: {}, dedByCat: {}, untyped: 0, notPay: 0,
@@ -358,6 +400,8 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
             acc.reviewPts += r.mins * reviewRateFor(c, cat);
             acc.revByCat[cat] = (acc.revByCat[cat] || 0) + r.mins;
             acc.reviewed += 1;
+            const rr = reviewRateFor(c, cat);
+            line(rv.e.name, r, "review", cat, rr, 0, 0, r.mins * rr);
           }
         } else {
           const u = unmatched.get(who) || { mins: 0, best: rv.e ? rv.e.name : null, score: rv.score };
@@ -382,7 +426,10 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
        video was made. Reviewing is credited above and deliberately left
        alone — looking at a revised cut is a fresh review either way. */
     const settle: Settlement = r.settle ?? { mode: "full" };
-    if (settle.mode === "skip") continue;
+    if (settle.mode === "skip") {
+      line(m.e.name, r, "skipped", cat);
+      continue;
+    }
 
     if (settle.mode === "deduct") {
       const cut = round(settle.gross * (settle.pct / 100), 4);
@@ -397,6 +444,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       if (cut > 0 && back && back !== NOTPAY) {
         rec.dedByCat[back] = (rec.dedByCat[back] || 0) + cut;
       }
+      line(m.e.name, r, "carried", back, 0, rounds, settle.pct / 100, 0, cut);
       continue;
     }
 
@@ -407,11 +455,13 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     if (cat === null) {
       rec.untyped += r.mins;
       if (raw) unknownTypes.set(raw, (unknownTypes.get(raw) || 0) + r.mins);
+      line(m.e.name, r, "unpriced", null);
       continue;
     }
     if (cat === NOTPAY) {
       rec.notPay += r.mins;
       rec.byCat[cat] = (rec.byCat[cat] || 0) + r.mins;
+      line(m.e.name, r, "unpriced", cat);
       continue;
     }
     if (byProject) {
@@ -419,11 +469,16 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
          a second deliverable of the same project adds its minutes and nothing
          more. Revisions are not charged — a day's work has no version. */
       const key = cat + "\u0000" + (r.code || "row " + rowNo);
-      if (credited.has(key)) continue;
+      if (credited.has(key)) {
+        line(m.e.name, r, "skipped", cat);
+        continue;
+      }
       credited.add(key);
-      rec.pts += rateFor(c, cat, m.e.slab);
+      const fee = rateFor(c, cat, m.e.slab);
+      rec.pts += fee;
       rec.projects += 1;
       rec.byCat[cat] = (rec.byCat[cat] || 0) + 1;
+      line(m.e.name, r, "project", cat, fee, 0, 0, fee);
       continue;
     }
 
@@ -436,6 +491,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
     rec.pts += gross - cut;
     rec.deducted += cut;
     rec.byCat[cat] = (rec.byCat[cat] || 0) + r.mins;
+    line(m.e.name, r, "edit", cat, rateFor(c, cat, m.e.slab), rounds, penaltyOf(c, rounds), gross, cut);
     if (rounds > 0) {
       rec.revised += 1;
       rec.rounds += rounds;
@@ -490,6 +546,7 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
 
   return {
     out,
+    lines,
     unknownTypes: [...unknownTypes.entries()].sort((a, b) => b[1] - a[1]),
     unmatched: [...unmatched.entries()].sort((a, b) => b[1].mins - a[1].mins),
     untypedMins: out.reduce((a, r) => a + r.untyped, 0),

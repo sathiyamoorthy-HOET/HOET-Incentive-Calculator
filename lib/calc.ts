@@ -117,7 +117,12 @@ export function catOf(c: Config, type: string | null | undefined): string | null
   const t = String(type ?? "").trim().toLowerCase();
   if (!t) return null;
   const m = c.map.find((x) => x[0].trim().toLowerCase() === t);
-  return m ? m[1] : null;
+  if (m) return m[1];
+  /* A type spelled exactly like a rate-card category is that category. The
+     mapping page is for the report's variant spellings, not for restating
+     the rate card row by row. */
+  const own = c.rates.find((r) => r.cat.trim().toLowerCase() === t);
+  return own ? own.cat : null;
 }
 
 /* -------------------------------------------------------------- name matching

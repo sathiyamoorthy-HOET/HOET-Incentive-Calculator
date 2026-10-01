@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { cats, inr, num, payParts, rateFor, reviewRateFor, round, totals, unitOf } from "@/lib/calc";
 import { exportRun } from "@/lib/export";
-import { ActiveRun, Computed, Config, NOTPAY, STATUS } from "@/lib/types";
+import { ActiveRun, Computed, Config, DATE_BASES, NOTPAY, STATUS } from "@/lib/types";
 import { saveRun } from "@/app/actions";
 
 export default function ResultsTab({
@@ -199,6 +199,15 @@ export default function ResultsTab({
           <div className="m">
             {active.length} of {o.length} editors delivered work · {num(t.p)} points ·{" "}
             {inr(t.i)} payable
+            {run.source?.period && (
+              <>
+                {" · "}
+                {DATE_BASES[run.source.period.basis]} {run.source.period.from} to{" "}
+                {run.source.period.to}
+                {run.source.period.dropped + run.source.period.undated > 0 &&
+                  ` · ${run.source.period.dropped + run.source.period.undated} rows left out`}
+              </>
+            )}
           </div>
         </div>
         <button className="btn g" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
@@ -365,7 +374,8 @@ export default function ResultsTab({
             <>
               <p className="sub" style={{ margin: "16px 0 10px" }}>
                 <strong>
-                  {untypedTotal} minutes were delivered with no video type recorded.
+                  {untypedTotal} minutes were delivered with no video type, or a type that is not
+                  on the rate card or the mapping above.
                 </strong>{" "}
                 Those minutes cannot be priced, so the editors below are scored lower than the work
                 they actually did.{" "}

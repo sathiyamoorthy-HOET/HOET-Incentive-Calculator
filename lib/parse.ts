@@ -1,7 +1,7 @@
 /* Types only, so reading a report costs the half-megabyte of SheetJS at the
    moment a file is dropped rather than when the page is opened. */
 import type * as XLSX from "xlsx";
-import { ParsedSource, SourceRow } from "./types";
+import { DateBasis, ParsedSource, SourceRow } from "./types";
 
 const NAME_H = ["assignee", "editor", "member", "name", "owner"];
 /* Substring matching means "type" already catches Video Type, Project Type and
@@ -19,6 +19,49 @@ const MGR_H = ["manager", "reviewer", "reviewed by"];
    with the project code it is the only stable name a video has: the identity
    that lets a cut uploaded in August be recognised again in September. */
 const DID_H = ["deliverable #", "deliverable no", "deliverable number", "#"];
+/* Project dates. Exact match wins in pick(), so "created" takes the Created
+   column over "Created by". */
+const CREATED_H = ["created", "created on", "created date", "creation date"];
+const ASSIGNED_H = ["assigned", "assigned on", "assigned date", "assign date"];
+const DUE_H = ["due", "due date", "deadline"];
+
+type Dates = Pick<SourceRow, "created" | "assigned" | "due">;
+
+/** "YYYY-MM-DD" from a text cell or an Excel serial date; null when neither. */
+function isoDate(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") {
+    return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+  }
+  const m = String(v).match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : null;
+}
+
+function datesAt(r: unknown[] | undefined, ci: number, ai: number, di: number): Dates {
+  return {
+    created: r ? isoDate(ci >= 0 ? r[ci] : null) : null,
+    assigned: r ? isoDate(ai >= 0 ? r[ai] : null) : null,
+    due: r ? isoDate(di >= 0 ? r[di] : null) : null,
+  };
+}
+
+/**
+ * The rows whose chosen project date falls inside [from, to]. ISO dates
+ * compare as text. Rows with no such date are left out and counted, so the
+ * Results page can say so rather than silently pricing or dropping them.
+ */
+export function inPeriod(rows: SourceRow[], basis: DateBasis, from: string, to: string) {
+  const kept: SourceRow[] = [];
+  let dropped = 0;
+  let undated = 0;
+  for (const r of rows) {
+    const d = r[basis];
+    if (!d) undated++;
+    else if (d < from || d > to) dropped++;
+    else kept.push(r);
+  }
+  return { rows: kept, dropped, undated };
+}
 
 /**
  * A deliverable whose status says somebody has actually looked at it. Work
@@ -124,14 +167,19 @@ function bestDeliverables(sheets: Sheet[]): Sheet | null {
 
 /** The sheet that can name the editor behind a project code. */
 function projectLookup(sheets: Sheet[], exclude: string) {
-  let best: { s: Sheet; ci: number; ni: number; ti: number; mi: number } | null = null;
+  let best: {
+    s: Sheet; ci: number; ni: number; ti: number; mi: number; cr: number; as: number; du: number;
+  } | null = null;
   for (const s of sheets) {
     if (s.name === exclude) continue;
     const ci = pick(s.head, CODE_H);
     const ni = pick(s.head, NAME_H);
     if (ci < 0 || ni < 0) continue;
     if (!best || s.aoa.length > best.s.aoa.length) {
-      best = { s, ci, ni, ti: pick(s.head, TYPE_H), mi: pick(s.head, MGR_H) };
+      best = {
+        s, ci, ni, ti: pick(s.head, TYPE_H), mi: pick(s.head, MGR_H),
+        cr: pick(s.head, CREATED_H), as: pick(s.head, ASSIGNED_H), du: pick(s.head, DUE_H),
+      };
     }
   }
   return best;
@@ -151,14 +199,16 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
   const api = pick(d.head, ["approved by", "approver"]);
   const di = pick(d.head, DID_H);
 
-  /* Editor, reviewer and fallback type, by project code. */
+  /* Editor, reviewer, fallback type and dates, by project code. */
   const editor = new Map<string, string>();
   const reviewer = new Map<string, string>();
   const projectType = new Map<string, string>();
+  const dates = new Map<string, Dates>();
   for (let i = 1; i < lookup.s.aoa.length; i++) {
     const r = lookup.s.aoa[i];
     const code = cell(r, lookup.ci);
     if (!code) continue;
+    if (!dates.has(code)) dates.set(code, datesAt(r, lookup.cr, lookup.as, lookup.du));
     const who = cell(r, lookup.ni);
     if (who && !editor.has(code)) editor.set(code, who);
     const mgr = cell(r, lookup.mi);
@@ -220,6 +270,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       reviewed: sti >= 0 ? isReviewed(status) : false,
       code: code || null,
       did: di >= 0 ? cell(r, di) || null : null,
+      ...dates.get(code),
     });
   }
 
@@ -256,6 +307,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       code,
       did: null,
       project: true,
+      ...dates.get(code),
     });
   }
 
@@ -277,6 +329,7 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
       idColumn: di >= 0 ? d.head[di] || null : null,
       deliverables,
       ambiguous,
+      period: null,
     },
   };
 }
@@ -308,6 +361,9 @@ function fromProjects(sheets: Sheet[]): ParseResult {
     };
   }
 
+  const cr = pick(best.s.head, CREATED_H);
+  const as = pick(best.s.head, ASSIGNED_H);
+  const du = pick(best.s.head, DUE_H);
   const rows: SourceRow[] = [];
   for (let i = 1; i < best.s.aoa.length; i++) {
     const r = best.s.aoa[i];
@@ -319,6 +375,7 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       type: best.ti >= 0 ? cell(r, best.ti) || null : null,
       mins: minutesOf(r, best.si, best.mi),
       rev: 0,
+      ...datesAt(r, cr, as, du),
     });
   }
 
@@ -340,6 +397,7 @@ function fromProjects(sheets: Sheet[]): ParseResult {
       idColumn: null,
       deliverables: 0,
       ambiguous: 0,
+      period: null,
     },
   };
 }

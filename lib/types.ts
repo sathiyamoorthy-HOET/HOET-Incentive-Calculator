@@ -163,6 +163,31 @@ export type SourceRow = {
    * project; otherwise it is a project nobody has delivered on yet.
    */
   project?: boolean;
+  /**
+   * The parent project's dates from the report, as "YYYY-MM-DD". Which work
+   * counts in a month is decided by when the project was created, assigned or
+   * due — not by when the export was run — so these are what the prompt on
+   * the Run page filters on.
+   */
+  created?: string | null;
+  assigned?: string | null;
+  due?: string | null;
+};
+
+/** The project dates a run can be limited by, with the label each shows as. */
+export const DATE_BASES = { created: "Created", assigned: "Assigned", due: "Due" } as const;
+export type DateBasis = keyof typeof DATE_BASES;
+
+/** The window a report was cut down to before it was priced. */
+export type Period = {
+  basis: DateBasis;
+  from: string;
+  to: string;
+  kept: number;
+  /** Rows whose date fell outside the window. */
+  dropped: number;
+  /** Rows with no date to judge by, also left out. */
+  undated: number;
 };
 
 /** What the parser made of the file, so the Results page can explain itself. */
@@ -203,6 +228,8 @@ export type ParsedSource = {
    * mistaking for each other.
    */
   ambiguous: number;
+  /** The date window the rows were kept to, or null when the whole report ran. */
+  period: Period | null;
 };
 
 /** The report currently on screen, either just uploaded or opened from History. */

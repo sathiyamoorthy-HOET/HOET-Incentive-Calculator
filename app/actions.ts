@@ -116,11 +116,23 @@ async function readLedger(
  */
 export async function settleUpload(
   config: Config,
-  rows: SourceRow[]
+  rows: SourceRow[],
+  /** The month this report is for, when it is already known. */
+  monthLabel?: string | null
 ): Promise<{ ok: true; rows: SourceRow[] } | { ok: false; error: string }> {
   try {
     const { supabase } = await requireUser();
-    const { ledger } = await readLedger(supabase);
+    /* A month run again is settled as Save settles it: against the months
+       before it, never against its own earlier save. Otherwise re-uploading
+       September after saving September finds every video already paid for
+       and prices the whole month at nothing. */
+    const month = parseMonth(monthLabel || "");
+    let replacing: number[] = [];
+    if (month) {
+      const { data: same } = await supabase.from("runs").select("id").eq("month", month);
+      replacing = ((same as { id: number }[] | null) || []).map((r) => r.id);
+    }
+    const { ledger } = await readLedger(supabase, replacing);
     return { ok: true, rows: settleRows(config, rows, ledger) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not read the ledger." };

@@ -51,14 +51,19 @@ export function RunPanel() {
         /* The window just confirmed says which month this is; failing that
            the file name usually carries the period. Only when the box is
            empty: a month someone typed is never overwritten. */
-        if (!month.trim()) {
+        let label = month.trim();
+        if (!label) {
           const m = parseMonth(source.period?.to) || parseMonth(fileName);
-          if (m) setMonth(monthName(m));
+          if (m) {
+            label = monthName(m);
+            setMonth(label);
+          }
         }
 
         /* Settle before showing any figures. A cut already paid for in an
-           earlier month must not appear on Results as money owed. */
-        const settled = await settleUpload(config, rows);
+           earlier month must not appear on Results as money owed — but this
+           month's own earlier save is not an earlier month. */
+        const settled = await settleUpload(config, rows, label);
         if (!settled.ok) return settled.error;
 
         setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null });

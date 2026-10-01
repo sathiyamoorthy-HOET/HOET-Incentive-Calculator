@@ -390,6 +390,22 @@ export default function RatesTab({
                     )}
                   </div>
                   <div>
+                    <label className="fld" htmlFor="kudos" title="A manager's extra points for the month, paid flat whether or not target was cleared">
+                      Kudos, ₹ a point
+                    </label>
+                    {editing ? (
+                      <NumInput
+                        className="fld-in"
+                        value={config.kudosRate}
+                        step="5"
+                        min="0"
+                        onCommit={(v) => update((d) => { d.kudosRate = Math.max(0, v); })}
+                      />
+                    ) : (
+                      <div className="val">₹{config.kudosRate}</div>
+                    )}
+                  </div>
+                  <div>
                     <label className="fld" htmlFor="pip">Months below target before a PIP</label>
                     {editing ? (
                       <NumInput

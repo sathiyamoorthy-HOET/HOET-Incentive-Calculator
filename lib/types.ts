@@ -114,6 +114,12 @@ export type Config = {
    */
   pipMonths: number;
   /**
+   * Rupees a kudos point pays: the manager's extra points for the month, paid
+   * flat whether or not the editor cleared target. Seeds the detailed
+   * report's Rate Card sheet.
+   */
+  kudosRate: number;
+  /**
    * What a revision costs, as a percentage of that video's points, indexed by
    * how many rounds it took: [0] is one revision, [1] is two, and so on. A
    * video revised more times than the list is long is charged the last entry.

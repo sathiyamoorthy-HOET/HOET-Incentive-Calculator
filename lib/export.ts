@@ -61,6 +61,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
   );
   rc.push([]);
   rc.push(["Points per working day", c.ppd]);
+  rc.push(["Kudos, ₹ per point", c.kudosRate]);
   c.patterns.forEach((p) => rc.push([p.name + " target", p.target, "standard days", p.days]));
 
   /* The ladder, rung by rung. Each rung pays only for the points inside it,

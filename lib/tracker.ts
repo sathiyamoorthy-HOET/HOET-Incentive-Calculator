@@ -127,12 +127,12 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     rc.getCell(bandRow + 1 + i, 1).value = to === null ? "+" + b.from + " and above" : "+" + b.from + " to +" + to;
     rc.getCell(bandRow + 1 + i, 2).value = b.rate;
   });
-  /* What a kudos point pays: seeded from the first rung, and yellow because
-     it is the one number on this sheet meant to be changed by hand. */
+  /* What a kudos point pays: the rate card's figure, and yellow because it
+     is the one number on this sheet meant to be changed by hand. */
   const kudosRow = bandRow + bands.length + 1;
   rc.getCell(kudosRow, 1).value = "Kudos, ₹ per point";
   rc.getCell(kudosRow, 1).font = { bold: true };
-  rc.getCell(kudosRow, 2).value = bands[0]?.rate ?? 0;
+  rc.getCell(kudosRow, 2).value = c.kudosRate ?? bands[0]?.rate ?? 0;
   rc.getCell(kudosRow, 2).fill = fill(YELLOW);
   const patRow = kudosRow + 2;
   rc.getCell(patRow, 1).value = "Work pattern";
@@ -498,7 +498,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
           return (to === null ? `+${b.from} and above` : `+${b.from} to +${to}`) + ` at ₹${b.rate} a point`;
         }).join("; ") + ". The Parent sheet works it out from Points, before any kudos points."
       : "No payout ladder is set."],
-    ["Kudos Points", "Internal. Yellow cells on the trackers are for you to fill. Every kudos point pays the rate in the yellow cell on the Rate Card sheet (₹" + (bands[0]?.rate ?? 0) + " to start with), whether or not the editor cleared target; Total Incentive adds it to the performance incentive."],
+    ["Kudos Points", "Internal. Yellow cells on the trackers are for you to fill. Every kudos point pays the rate in the yellow cell on the Rate Card sheet (₹" + (c.kudosRate ?? bands[0]?.rate ?? 0) + " when this file was made), whether or not the editor cleared target; Total Incentive adds it to the performance incentive."],
     ["Type mapping", mapping || "None."],
     ["Editor matching", "Names in the export are matched to the team list as the app does; names it could not match are listed on the Results page, not here."],
   ];

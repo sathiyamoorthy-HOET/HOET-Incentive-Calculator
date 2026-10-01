@@ -64,6 +64,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   shared.revPen = shared.revPen ?? [];
   shared.payBands = shared.payBands ?? [];
   shared.pipMonths = shared.pipMonths ?? 3;
+  /* Until its migration is applied a kudos point pays the ladder's first rung. */
+  shared.kudosRate = shared.kudosRate ?? shared.payBands[0]?.rate ?? 175;
 
   return (
     <AppShell initialConfig={shared} userLabel={label}>

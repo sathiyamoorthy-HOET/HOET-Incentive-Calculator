@@ -162,9 +162,9 @@ function TeamTable({
         <thead>
           <tr>
             <SortHead {...head} col="name" label="Editor" />
-            <SortHead {...head} col="email" label="Mail ID" width={230} />
+            <SortHead {...head} col="email" label="Mail ID" width={320} />
             <SortHead {...head} col="slab" label="Slab" width={90} />
-            <SortHead {...head} col="pattern" label="Work pattern" width={130} />
+            <SortHead {...head} col="pattern" label="Work pattern" width={150} />
             <SortHead
               {...head}
               col="reviews"

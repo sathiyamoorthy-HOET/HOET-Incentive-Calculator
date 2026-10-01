@@ -6,9 +6,34 @@ import { cats, catsOf, inr, num, payParts, round, totals } from "@/lib/calc";
 import Breakdown from "./Breakdown";
 import { exportRun } from "@/lib/export";
 import { exportTracker } from "@/lib/tracker";
-import { ActiveRun, Computed, Config, DATE_BASES, STATUS } from "@/lib/types";
+import { ActiveRun, Computed, Config, DATE_BASES, EditorResult, SLABS, STATUS } from "@/lib/types";
+import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
 import { saveRun } from "@/app/actions";
 import { parseMonth } from "@/lib/months";
+
+type Col =
+  | "name" | "slab" | "mins" | "revised" | "deducted" | "reviewed" | "pts" | "target"
+  | "pctv" | "surplus" | "incentive" | "status";
+
+/* Status in the order a manager reads it: cleared, short, blocked, nothing. */
+const STATUS_RANK = { over: 0, under: 1, blocked: 2, none: 3 } as const;
+
+function colValue(r: EditorResult, col: Col) {
+  switch (col) {
+    case "name": return r.name;
+    case "slab": return SLABS.indexOf(r.slab);
+    case "mins": return r.mins;
+    case "revised": return r.revised || null;
+    case "deducted": return r.deducted > 0.05 ? r.deducted : null;
+    case "reviewed": return r.reviewed || null;
+    case "pts": return r.pts;
+    case "target": return r.target;
+    case "pctv": return r.pctv;
+    case "surplus": return r.surplus > 0 ? r.surplus : null;
+    case "incentive": return r.incentive > 0 ? r.incentive : null;
+    case "status": return STATUS_RANK[r.status];
+  }
+}
 
 export default function ResultsTab({
   config,
@@ -35,6 +60,7 @@ export default function ResultsTab({
   goRun: () => void;
 }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
+  const [sort, setSort] = useState<Sort<Col>>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const linkSel = useRef<Record<string, string>>({});
@@ -55,6 +81,10 @@ export default function ResultsTab({
 
   const o = result.out;
   const t = totals(o);
+  /* Positions into `o` rather than a re-sorted copy, so the rows held open
+     stay open whichever column the table is read by. */
+  const order = sorted(o.map((_, i) => i), sort, (i, col) => colValue(o[i], col), (i) => o[i].name);
+  const head = { sort, onToggle: (col: Col) => setSort(toggleSort(sort, col)) };
   const active = o.filter((r) => r.mins > 0.05 || r.projects > 0);
   const cleared = o.filter((r) => r.surplus > 0);
   const blocked = o.filter((r) => r.status === "blocked");
@@ -487,26 +517,35 @@ export default function ResultsTab({
           <table>
             <thead>
               <tr>
-                <th>Editor</th>
-                <th>Slab</th>
-                <th className="r">Minutes</th>
-                <th className="r" title="Videos that came back, and the rounds they took">
-                  Revisions
-                </th>
-                <th className="r">Deducted</th>
-                <th className="r" title="Videos reviewed for other editors, and the points earned">
-                  Reviewed
-                </th>
-                <th className="r">Points</th>
-                <th className="r">Target</th>
-                <th style={{ width: 80 }}>Progress</th>
-                <th className="r">Above target</th>
-                <th className="r">Incentive</th>
-                <th>Status</th>
+                <SortHead {...head} col="name" label="Editor" />
+                <SortHead {...head} col="slab" label="Slab" />
+                <SortHead {...head} col="mins" label="Minutes" right />
+                <SortHead
+                  {...head}
+                  col="revised"
+                  label="Revisions"
+                  right
+                  title="Videos that came back, and the rounds they took"
+                />
+                <SortHead {...head} col="deducted" label="Deducted" right />
+                <SortHead
+                  {...head}
+                  col="reviewed"
+                  label="Reviewed"
+                  right
+                  title="Videos reviewed for other editors, and the points earned"
+                />
+                <SortHead {...head} col="pts" label="Points" right />
+                <SortHead {...head} col="target" label="Target" right />
+                <SortHead {...head} col="pctv" label="Progress" width={80} />
+                <SortHead {...head} col="surplus" label="Above target" right />
+                <SortHead {...head} col="incentive" label="Incentive" right />
+                <SortHead {...head} col="status" label="Status" />
               </tr>
             </thead>
             <tbody>
-              {o.flatMap((r, i) => {
+              {order.flatMap((i) => {
+                const r = o[i];
                 const pc = Math.min(100, Math.round(r.pctv * 100));
                 const st = STATUS[r.status];
                 const isOpen = open.has(i);

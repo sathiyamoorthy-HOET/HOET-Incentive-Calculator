@@ -156,24 +156,26 @@ function TeamTable({
 
   const head = { sort, onToggle: (col: Col) => onSort(toggleSort(sort, col)) };
 
+  /* Name and mail keep a measure of their own and sit together; the five
+     short columns share whatever width is left, so they read spaced out
+     rather than packed against the right edge. */
   return (
     <div className="scroll">
       <table>
         <thead>
           <tr>
-            <SortHead {...head} col="name" label="Editor" />
+            <SortHead {...head} col="name" label="Editor" width={260} />
             <SortHead {...head} col="email" label="Mail ID" width={320} />
-            <SortHead {...head} col="slab" label="Slab" width={90} />
-            <SortHead {...head} col="pattern" label="Work pattern" width={150} />
+            <SortHead {...head} col="slab" label="Slab" />
+            <SortHead {...head} col="pattern" label="Work pattern" />
             <SortHead
               {...head}
               col="reviews"
               label="Reviews"
-              width={90}
               title="Reviews work rather than editing it"
             />
-            <SortHead {...head} col="days" label="Days available" width={100} right />
-            <SortHead {...head} col="target" label="Target" width={90} right />
+            <SortHead {...head} col="days" label="Days available" right />
+            <SortHead {...head} col="target" label="Target" right />
             {editing && <th style={{ width: 40 }} />}
           </tr>
         </thead>

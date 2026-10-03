@@ -273,6 +273,12 @@ export type ActiveRun = {
   /** Set when viewing a saved run: prices it with the rate card of the day. */
   snapshot: Config | null;
   savedId: number | null;
+  /**
+   * A manager's kudos points for the month, by editor name: effort the
+   * report did not score, paid flat at the rate card's kudos rate. Typed on
+   * Results and saved with the run.
+   */
+  kudos: Record<string, number>;
 };
 
 export type RunStatus = "over" | "under" | "blocked" | "none";
@@ -324,7 +330,13 @@ export type EditorResult = {
   pts: number;
   target: number;
   surplus: number;
+  /** The performance incentive: what points above target paid on the ladder. */
   incentive: number;
+  /** Kudos points given this month, and what they pay at the flat rate. */
+  kudos: number;
+  kudosInr: number;
+  /** Performance incentive plus kudos: what is actually paid out. */
+  total: number;
   pctv: number;
   status: RunStatus;
 };

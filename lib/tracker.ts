@@ -9,8 +9,8 @@ import { Computed, Config, DATE_BASES, EXP, NOTPAY, Period, PricedLine, SourceRo
  *
  * Every figure that can be a formula is one, with the app's own number cached
  * beside it, so the file opens with the right values anywhere and still
- * recalculates when a kudos point is typed in: the tracker total, the Parent
- * row, points above target and the incentive all follow.
+ * recalculates when a kudos point is changed on the Parent: the kudos
+ * incentive and the total follow.
  *
  * ExcelJS rather than SheetJS because the file is read by people, and the
  * yellow cells are what tells them where to type. Loaded only when the
@@ -82,9 +82,9 @@ const byDate = (a: PricedLine, b: PricedLine) =>
 
 const TCOLS = [
   "Video Name", "Assigned By", "Type of Video/Work", "Approved Video Link", "Assigned Date",
-  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points", "Kudos Points", "Total Points",
+  "Completion Date", "Duration (min)", "Revisions", "Deduction %", "Points",
 ];
-const TWIDTHS = [44, 22, 34, 18, 13, 14, 13, 10, 11, 10, 12, 12];
+const TWIDTHS = [44, 22, 34, 18, 13, 14, 13, 10, 11, 10];
 
 export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   const mod = await import("exceljs");
@@ -197,7 +197,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     });
   };
 
-  const writeLine = (ws: ExcelJS.Worksheet, r: number, l: PricedLine, held: boolean) => {
+  const writeLine = (ws: ExcelJS.Worksheet, r: number, l: PricedLine) => {
     const row = l.row;
     /* The project's name, then which of its deliverables this is, so five
        cuts of one project read as five lines and not one repeated. */
@@ -239,13 +239,6 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     else if (l.kind === "project") pts.value = { formula: lookup, result: value };
     else pts.value = value;
     pts.numFmt = "0.0";
-
-    if (!held) {
-      ws.getCell(r, 11).fill = fill(YELLOW);
-      ws.getCell(r, 11).numFmt = "0.0";
-      ws.getCell(r, 12).value = { formula: `J${r}+K${r}`, result: value };
-      ws.getCell(r, 12).numFmt = "0.0";
-    }
   };
 
   const videos = (ls: PricedLine[]) => ls.filter((l) => l.kind === "edit" || l.kind === "project").length;
@@ -269,11 +262,11 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     ws.getCell("C2").value = EXP[e.slab];
     ws.getCell("A3").value =
       `Work in ${month}` + (period ? ` (projects with ${basisLabel.toLowerCase()} date ${period.from} to ${period.to})` : "") +
-      ". Yellow cells (Kudos Points) are for internal use — type a number and the Parent's kudos incentive follows.";
+      ". Kudos points are on the Parent sheet.";
     writeHead(ws, 4, TCOLS);
 
     let r = 5;
-    for (const l of lines) writeLine(ws, r++, l, false);
+    for (const l of lines) writeLine(ws, r++, l);
     const last = Math.max(r - 1, 5);
     const t = r;
     const n = videos(lines);
@@ -282,15 +275,13 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     const totals: [number, number, string][] = [
       [7, sum(lines, (l) => l.row.mins), "0.00"],
       [10, sum(lines, (l) => l.pts), "0.0"],
-      [11, 0, "0.0"],
-      [12, sum(lines, (l) => l.pts), "0.0"],
     ];
     for (const [cIdx, value, fmt] of totals) {
       const cell = ws.getCell(t, cIdx);
       cell.value = { formula: `SUM(${col(cIdx)}5:${col(cIdx)}${last})`, result: value };
       cell.numFmt = fmt;
     }
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 10; i++) {
       ws.getCell(t, i).fill = fill(TOTAL);
       ws.getCell(t, i).font = { bold: true };
     }
@@ -303,7 +294,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
       ws.getCell(h0, 1).font = { bold: true, color: { argb: HELD_INK } };
       writeHead(ws, h0 + 1, TCOLS.slice(0, 10), HELD, HELD_INK);
       let hr = h0 + 2;
-      for (const l of hl) writeLine(ws, hr++, l, true);
+      for (const l of hl) writeLine(ws, hr++, l);
       const m = videos(hl);
       ws.getCell(hr, 1).value = `Held total · ${m} video${m === 1 ? "" : "s"}`;
       ws.getCell(hr, 1).font = { bold: true, color: { argb: HELD_INK } };
@@ -323,7 +314,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   parent.getCell("A1").font = { bold: true, size: 14 };
   parent.getCell("A2").value =
     "Click an editor's name to open their tracker, and a video's status to open its project in Orbitova. " +
-    "Kudos Points (yellow) are internal: type a number on the tracker and the kudos incentive here follows, at the rate set on the Rate Card sheet. " +
+    "Kudos Points (yellow) are what was given in the app; change one here and the kudos incentive follows, at the rate set on the Rate Card sheet. " +
     "Held = no " + basisLabel.toLowerCase() + " date in the export; listed on the Held Projects sheet, not counted.";
   parent.getCell("A2").font = { bold: true, size: 10 };
   parent.getCell("A2").alignment = { wrapText: true, vertical: "top" };
@@ -385,12 +376,13 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(pr, cTg).value = e.target;
     parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cP)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
     parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
-    /* Kudos pay a flat rate for every point, target or no target. The rate
-       is a cell on the Rate Card sheet, so it can be changed in the file. */
-    parent.getCell(pr, cG).value = sh ? { formula: `${sh}$K$${ref!.total}`, result: 0 } : 0;
+    /* Kudos pay a flat rate for every point, target or no target. The points
+       are what the app holds for this run; the rate is a cell on the Rate
+       Card sheet, so either can still be changed in the file. */
+    parent.getCell(pr, cG).value = e.kudos;
     parent.getCell(pr, cG).fill = fill(YELLOW);
-    parent.getCell(pr, cGI).value = { formula: `ROUND(${col(cG)}${pr}*${KUDOS_RATE},0)`, result: 0 };
-    parent.getCell(pr, cTI).value = { formula: `${col(cI)}${pr}+${col(cGI)}${pr}`, result: e.incentive };
+    parent.getCell(pr, cGI).value = { formula: `ROUND(${col(cG)}${pr}*${KUDOS_RATE},0)`, result: e.kudosInr };
+    parent.getCell(pr, cTI).value = { formula: `${col(cI)}${pr}+${col(cGI)}${pr}`, result: e.total };
     parent.getCell(pr, cTI).font = { bold: true };
     for (const i of [cI, cGI, cTI]) parent.getCell(pr, i).numFmt = "#,##0";
     for (const i of [cM, cP, cG, cA]) parent.getCell(pr, i).numFmt = "0.0";
@@ -498,7 +490,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
           return (to === null ? `+${b.from} and above` : `+${b.from} to +${to}`) + ` at ₹${b.rate} a point`;
         }).join("; ") + ". The Parent sheet works it out from Points, before any kudos points."
       : "No payout ladder is set."],
-    ["Kudos Points", "Internal. Yellow cells on the trackers are for you to fill. Every kudos point pays the rate in the yellow cell on the Rate Card sheet (₹" + (c.kudosRate ?? bands[0]?.rate ?? 0) + " when this file was made), whether or not the editor cleared target; Total Incentive adds it to the performance incentive."],
+    ["Kudos Points", "Given in the app on the Results page and written to the yellow cells on the Parent sheet. Every kudos point pays the rate in the yellow cell on the Rate Card sheet (₹" + (c.kudosRate ?? bands[0]?.rate ?? 0) + " when this file was made), whether or not the editor cleared target; Total Incentive adds it to the performance incentive."],
     ["Type mapping", mapping || "None."],
     ["Editor matching", "Names in the export are matched to the team list as the app does; names it could not match are listed on the Results page, not here."],
   ];

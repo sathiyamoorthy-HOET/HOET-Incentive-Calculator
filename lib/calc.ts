@@ -325,7 +325,12 @@ export function ledgerAfter(c: Config, rows: SourceRow[], ledger: Ledger): Ledge
   return next;
 }
 
-export function compute(c: Config, rows: SourceRow[]): Computed {
+/** What kudos points pay: a flat rate a point, target or no target. */
+export function kudosInrOf(c: Config, points: number): number {
+  return Math.round(Math.max(0, points) * (c.kudosRate ?? 0));
+}
+
+export function compute(c: Config, rows: SourceRow[], kudos: Record<string, number> = {}): Computed {
   type Acc = {
     mins: number;
     pts: number;
@@ -512,6 +517,9 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
       else status = "under";
+      const incentive = incentiveOf(c, surplus);
+      const kp = Math.max(0, Number(kudos[e.name]) || 0);
+      const kudosInr = kudosInrOf(c, kp);
       return {
         name: e.name,
         slab: e.slab,
@@ -537,7 +545,10 @@ export function compute(c: Config, rows: SourceRow[]): Computed {
         pts,
         target,
         surplus,
-        incentive: incentiveOf(c, surplus),
+        incentive,
+        kudos: kp,
+        kudosInr,
+        total: incentive + kudosInr,
         pctv: target ? pts / target : 0,
         status,
       };
@@ -561,10 +572,12 @@ export function totals(out: EditorResult[]) {
       t: a.t + r.target,
       s: a.s + r.surplus,
       i: a.i + r.incentive,
+      kp: a.kp + r.kudos,
+      k: a.k + r.kudosInr,
       d: a.d + r.deducted,
       rm: a.rm + r.reviewMins,
       rp: a.rp + r.reviewPts,
     }),
-    { m: 0, p: 0, t: 0, s: 0, i: 0, d: 0, rm: 0, rp: 0 }
+    { m: 0, p: 0, t: 0, s: 0, i: 0, kp: 0, k: 0, d: 0, rm: 0, rp: 0 }
   );
 }

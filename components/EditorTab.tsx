@@ -32,6 +32,7 @@ function Rework({ m }: { m: EditorMonth }) {
       m.reviewed + " reviewed for others, worth " + round(m.reviewPts, 1) + " points"
     );
   }
+  if (m.kudos > 0) bits.push(round(m.kudos, 1) + " kudos points, " + inr(m.kudosInr));
   if (!bits.length) return null;
   return (
     <p className="detnote">{bits.join(" · ")}</p>
@@ -104,7 +105,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
         <div className="cardhead">
           <h3>
             {cleared} of {active} {active === 1 ? "month" : "months"} above target ·{" "}
-            {inr(sum((m) => m.incentive))} earned
+            {inr(sum((m) => m.incentive + m.kudosInr))} earned
           </h3>
           <button
             className="btn g"
@@ -127,7 +128,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
                 <th className="r">Points</th>
                 <th className="r">Target</th>
                 <th className="r">Above target</th>
-                <th className="r">Incentive</th>
+                <th className="r" title="Performance incentive plus any kudos">Incentive</th>
                 <th>Status</th>
                 <th style={{ width: 70 }} />
               </tr>
@@ -170,8 +171,8 @@ export default function EditorTab({ report }: { report: EditorReport }) {
                       </span>
                     </td>
                     <td className="r num">
-                      {m.incentive > 0 ? (
-                        <strong style={{ color: "var(--emerald)" }}>{inr(m.incentive)}</strong>
+                      {m.incentive + m.kudosInr > 0 ? (
+                        <strong style={{ color: "var(--emerald)" }}>{inr(m.incentive + m.kudosInr)}</strong>
                       ) : (
                         <span className="muted-2">—</span>
                       )}
@@ -215,7 +216,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
                 <td className="r num">{round(sum((m) => m.points), 1)}</td>
                 <td className="r num">{num(sum((m) => m.target))}</td>
                 <td className="r num">{round(sum((m) => m.surplus), 1)}</td>
-                <td className="r num">{inr(sum((m) => m.incentive))}</td>
+                <td className="r num">{inr(sum((m) => m.incentive + m.kudosInr))}</td>
                 <td colSpan={2} />
               </tr>
             </tfoot>

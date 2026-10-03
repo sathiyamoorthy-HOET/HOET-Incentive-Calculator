@@ -4,16 +4,17 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { cats, catsOf, inr, num, payParts, round, totals } from "@/lib/calc";
 import Breakdown from "./Breakdown";
+import NumInput from "./NumInput";
 import { exportRun } from "@/lib/export";
 import { exportTracker } from "@/lib/tracker";
 import { ActiveRun, Computed, Config, DATE_BASES, EditorResult, SLABS, STATUS } from "@/lib/types";
 import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
-import { saveRun } from "@/app/actions";
+import { saveRun, type ActionResult } from "@/app/actions";
 import { parseMonth } from "@/lib/months";
 
 type Col =
   | "name" | "slab" | "mins" | "revised" | "deducted" | "reviewed" | "pts" | "target"
-  | "pctv" | "surplus" | "incentive" | "status";
+  | "pctv" | "surplus" | "incentive" | "kudos" | "total" | "status";
 
 /* Status in the order a manager reads it: cleared, short, blocked, nothing. */
 const STATUS_RANK = { over: 0, under: 1, blocked: 2, none: 3 } as const;
@@ -31,6 +32,8 @@ function colValue(r: EditorResult, col: Col) {
     case "pctv": return r.pctv;
     case "surplus": return r.surplus > 0 ? r.surplus : null;
     case "incentive": return r.incentive > 0 ? r.incentive : null;
+    case "kudos": return r.kudos > 0 ? r.kudos : null;
+    case "total": return r.total > 0 ? r.total : null;
     case "status": return STATUS_RANK[r.status];
   }
 }
@@ -43,6 +46,9 @@ export default function ResultsTab({
   month,
   setMonth,
   update,
+  setKudos,
+  kudosDirty,
+  onSaveKudos,
   onRerunLive,
   onSaved,
   goRun,
@@ -55,6 +61,12 @@ export default function ResultsTab({
   /** Lets the run be given its month right here, beside Save, when it has none. */
   setMonth?: (m: string) => void;
   update: (fn: (draft: Config) => void) => void;
+  /** Gives an editor kudos points for this month. */
+  setKudos: (name: string, points: number) => void;
+  /** On a saved run: whether the kudos on screen differ from what is stored. */
+  kudosDirty?: boolean;
+  /** On a saved run: writes the kudos on screen to it. */
+  onSaveKudos?: () => Promise<ActionResult>;
   onRerunLive: () => void;
   onSaved: (id: number) => void;
   goRun: () => void;
@@ -62,6 +74,7 @@ export default function ResultsTab({
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [sort, setSort] = useState<Sort<Col>>(null);
   const [saving, setSaving] = useState(false);
+  const [savingKudos, setSavingKudos] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const linkSel = useRef<Record<string, string>>({});
   const mapSel = useRef<Record<string, string>>({});
@@ -128,6 +141,7 @@ export default function ResultsTab({
       fileName: run.fileName,
       rows: run.rows,
       config: liveConfig,
+      kudos: run.kudos,
     });
     setSaving(false);
     if (res.ok) {
@@ -138,10 +152,22 @@ export default function ResultsTab({
     }
   }
 
+  async function doSaveKudos() {
+    if (!onSaveKudos) return;
+    setSavingKudos(true);
+    setSaveMsg(null);
+    const res = await onSaveKudos();
+    setSavingKudos(false);
+    setSaveMsg(res.ok ? { ok: true, text: "Kudos points saved to this run." } : { ok: false, text: res.error });
+  }
+
   return (
     <section className="panel on">
       <h2>Results</h2>
-      <p className="sub">Incentive is earned only on points above target.</p>
+      <p className="sub">
+        Incentive is earned only on points above target. Kudos points pay ₹{config.kudosRate} each,
+        target or no target.
+      </p>
 
       {noTypeColumn && (
         <div className="note bad">
@@ -237,7 +263,7 @@ export default function ResultsTab({
           <div className="t">{run.fileName || "Report"}</div>
           <div className="m">
             {active.length} of {o.length} editors delivered work · {num(t.p)} points ·{" "}
-            {inr(t.i)} payable
+            {inr(t.i + t.k)} payable
             {run.source?.period && (
               <>
                 {" · "}
@@ -280,6 +306,16 @@ export default function ResultsTab({
         {!readOnly && (
           <button className="btn o" onClick={doSave} disabled={saving || noMonth} title={noMonth ? "Type the month first" : undefined}>
             {saving ? <span className="spin" /> : run.savedId ? "Save again" : "Save this run"}
+          </button>
+        )}
+        {readOnly && onSaveKudos && (
+          <button
+            className="btn o"
+            onClick={doSaveKudos}
+            disabled={savingKudos || !kudosDirty}
+            title={kudosDirty ? "Store the kudos points typed below on this run" : "Type kudos points in the table to enable"}
+          >
+            {savingKudos ? <span className="spin" /> : "Save kudos points"}
           </button>
         )}
         <button className="btn o" onClick={goRun}>
@@ -499,14 +535,16 @@ export default function ResultsTab({
         />
         {t.rp > 0.05 && <Kpi b={num(t.rp)} s={"Review points, " + round(t.rm, 0) + " min reviewed"} />}
         {t.d > 0.05 && <Kpi b={"−" + num(t.d)} s="Points off for revisions" cls="warn" />}
-        <Kpi b={inr(t.i)} s="Incentive payable" cls="hi" />
+        {t.k > 0 && <Kpi b={inr(t.k)} s={"Kudos, " + num(t.kp) + " points"} />}
+        <Kpi b={inr(t.i + t.k)} s="Incentive payable" cls="hi" />
       </div>
 
       <div className="card">
         <div className="row" style={{ marginBottom: 6 }}>
           <h3 style={{ margin: 0 }}>Every editor</h3>
           <span style={{ color: "var(--muted)", fontSize: 12.5 }}>
-            Click a row to see the breakdown by video type
+            Click a row to see the breakdown by video type. Type kudos points in the Kudos column
+            {readOnly ? ", then press Save kudos points" : "; they are saved with the run"}.
           </span>
           <button className="btn o" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
             Download summary sheet
@@ -540,6 +578,8 @@ export default function ResultsTab({
                 <SortHead {...head} col="pctv" label="Progress" width={80} />
                 <SortHead {...head} col="surplus" label="Above target" right />
                 <SortHead {...head} col="incentive" label="Incentive" right />
+                <SortHead {...head} col="kudos" label="Kudos" right title="Kudos points, a manager's extra points for the month" />
+                <SortHead {...head} col="total" label="Total" right title="Incentive plus kudos" />
                 <SortHead {...head} col="status" label="Status" />
               </tr>
             </thead>
@@ -621,6 +661,25 @@ export default function ResultsTab({
                         "—"
                       )}
                     </td>
+                    <td className="r num" onClick={(e) => e.stopPropagation()}>
+                      <NumInput
+                        value={r.kudos}
+                        min="0"
+                        step="0.5"
+                        width={60}
+                        onCommit={(v) => setKudos(r.name, Math.max(0, v))}
+                      />
+                      {r.kudosInr > 0 && (
+                        <span className="muted" style={{ fontSize: 11.5 }}>{" " + inr(r.kudosInr)}</span>
+                      )}
+                    </td>
+                    <td className="r num">
+                      {r.total > 0 ? (
+                        <strong style={{ color: "var(--emerald)" }}>{inr(r.total)}</strong>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>
                       <span className={"pill " + st[0]}>{st[1]}</span>
                     </td>
@@ -630,12 +689,12 @@ export default function ResultsTab({
                 if (isOpen) {
                   rows.push(
                     <tr key={r.name + "-det"} className="det on">
-                      <td colSpan={12}>
+                      <td colSpan={14}>
                         <div className="detbox">
                           <div className="detmain">
                             <Breakdown cats={catsOf(config, r)} />
                           </div>
-                          <PaySplit config={config} surplus={r.surplus} />
+                          <PaySplit config={config} r={r} />
                         </div>
                       </td>
                     </tr>
@@ -657,6 +716,8 @@ export default function ResultsTab({
                 <td />
                 <td className="r num">{Math.round(t.s)}</td>
                 <td className="r num">{inr(t.i)}</td>
+                <td className="r num">{t.kp > 0 ? num(t.kp) : "—"}</td>
+                <td className="r num">{inr(t.i + t.k)}</td>
                 <td />
               </tr>
             </tfoot>
@@ -672,10 +733,10 @@ export default function ResultsTab({
  * the row stops being self-evident once points above target are paid in rungs,
  * so the rungs that actually paid are spelled out underneath.
  */
-function PaySplit({ config, surplus }: { config: Config; surplus: number }) {
-  if (surplus <= 0) return null;
-  const parts = payParts(config, surplus).filter((p) => p.pts > 0);
-  if (!parts.length) return null;
+function PaySplit({ config, r }: { config: Config; r: EditorResult }) {
+  const surplus = r.surplus;
+  const parts = surplus > 0 ? payParts(config, surplus).filter((p) => p.pts > 0) : [];
+  if (!parts.length && r.kudos <= 0) return null;
   const total = parts.reduce((a, p) => a + p.amount, 0);
   return (
     <div className="detpay">
@@ -695,11 +756,25 @@ function PaySplit({ config, surplus }: { config: Config; surplus: number }) {
               <td className="r num">{inr(p.amount)}</td>
             </tr>
           ))}
+          {r.kudos > 0 && (
+            <tr>
+              <td className="muted">Kudos</td>
+              <td className="r num">
+                {round(r.kudos, 1)}
+                <span className="unit">pts</span>
+              </td>
+              <td className="r num muted">× ₹{config.kudosRate}</td>
+              <td className="r num">{inr(r.kudosInr)}</td>
+            </tr>
+          )}
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={3}>{round(surplus, 1)} points above target</td>
-            <td className="r num pos">{inr(total)}</td>
+            <td colSpan={3}>
+              {surplus > 0 ? round(surplus, 1) + " points above target" : "No points above target"}
+              {r.kudos > 0 ? " · " + round(r.kudos, 1) + " kudos" : ""}
+            </td>
+            <td className="r num pos">{inr(total + r.kudosInr)}</td>
           </tr>
         </tfoot>
       </table>

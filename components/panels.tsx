@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { compute } from "@/lib/calc";
 import { monthName, parseMonth } from "@/lib/months";
 import { ActiveRun, Config, SourceRow } from "@/lib/types";
-import { settleUpload } from "@/app/actions";
+import { saveKudos, settleUpload } from "@/app/actions";
 import { useApp } from "./AppShell";
 import RunTab from "./RunTab";
 import ResultsTab from "./ResultsTab";
@@ -38,6 +38,9 @@ export function RunPanel() {
         month={month}
         setMonth={setMonth}
         update={update}
+        setKudos={(name, v) =>
+          setRun((r) => (r ? { ...r, kudos: { ...r.kudos, [name]: v } } : r))
+        }
         onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
         onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
         goRun={() => setRun(null)}
@@ -66,7 +69,7 @@ export function RunPanel() {
         const settled = await settleUpload(config, rows, label);
         if (!settled.ok) return settled.error;
 
-        setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null });
+        setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null, kudos: {} });
         return null;
       }}
     />
@@ -84,21 +87,32 @@ export function SavedRunPanel({
   fileName,
   rows,
   snapshot,
+  kudos: saved,
 }: {
   id: number;
   monthLabel: string;
   fileName: string;
   rows: SourceRow[];
   snapshot: Config;
+  kudos: Record<string, number>;
 }) {
   const { config, update, setRun, setMonth } = useApp();
   const router = useRouter();
 
+  /* Kudos are the one thing a saved run still takes: typed here, saved with
+     their own button, and the figure every page then shows. */
+  const [kudos, setKudosMap] = useState(saved);
+  const [stored, setStored] = useState(saved);
+  const kudosDirty = useMemo(() => {
+    const names = new Set([...Object.keys(kudos), ...Object.keys(stored)]);
+    return [...names].some((n) => (kudos[n] || 0) !== (stored[n] || 0));
+  }, [kudos, stored]);
+
   const run = useMemo<ActiveRun>(
-    () => ({ rows, fileName, snapshot, savedId: id }),
-    [rows, fileName, snapshot, id]
+    () => ({ rows, fileName, snapshot, savedId: id, kudos }),
+    [rows, fileName, snapshot, id, kudos]
   );
-  const result = useMemo(() => compute(snapshot, rows), [snapshot, rows]);
+  const result = useMemo(() => compute(snapshot, rows, kudos), [snapshot, rows, kudos]);
 
   return (
     <ResultsTab
@@ -108,9 +122,19 @@ export function SavedRunPanel({
       result={result}
       month={monthLabel}
       update={update}
+      setKudos={(name, v) => setKudosMap((k) => ({ ...k, [name]: v }))}
+      kudosDirty={kudosDirty}
+      onSaveKudos={async () => {
+        const res = await saveKudos(id, kudos);
+        if (res.ok) {
+          setStored(kudos);
+          router.refresh();
+        }
+        return res;
+      }}
       onRerunLive={() => {
         setMonth(monthLabel);
-        setRun({ rows, fileName, snapshot: null, savedId: null });
+        setRun({ rows, fileName, snapshot: null, savedId: null, kudos });
         router.push("/run");
       }}
       onSaved={() => {}}

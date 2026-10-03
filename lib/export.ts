@@ -21,7 +21,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
       "Paid in an earlier month", "Points off for those revisions",
       "Videos reviewed", "Minutes reviewed", "Review points",
       "Points earned", "Target points", "Points above target",
-      "Incentive (INR)", "Status",
+      "Incentive (INR)", "Kudos points", "Kudos (INR)", "Total incentive (INR)", "Status",
     ],
   ];
   out.forEach((r) =>
@@ -30,7 +30,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
       r.revised, r.rounds, round(r.deducted, 1),
       r.carried, round(r.carryDed, 1),
       r.reviewed, r.reviewMins, round(r.reviewPts, 1),
-      round(r.pts, 1), r.target, r.surplus, r.incentive, STATUS[r.status][1],
+      round(r.pts, 1), r.target, r.surplus, r.incentive, r.kudos, r.kudosInr, r.total, STATUS[r.status][1],
     ])
   );
 
@@ -41,7 +41,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
     out.reduce((a, r) => a + r.revised, 0), out.reduce((a, r) => a + r.rounds, 0), round(t.d, 1),
     out.reduce((a, r) => a + r.carried, 0), round(out.reduce((a, r) => a + r.carryDed, 0), 1),
     out.reduce((a, r) => a + r.reviewed, 0), round(t.rm, 1), round(t.rp, 1),
-    round(t.p, 1), Math.round(t.t), round(t.s, 1), Math.round(t.i), "",
+    round(t.p, 1), Math.round(t.t), round(t.s, 1), Math.round(t.i), round(t.kp, 1), Math.round(t.k), Math.round(t.i + t.k), "",
   ]);
 
   const wb = XLSX.utils.book_new();
@@ -51,7 +51,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
     { wch: 11 }, { wch: 11 }, { wch: 8 }, { wch: 9 }, { wch: 12 },
     { wch: 13 }, { wch: 14 },
     { wch: 9 }, { wch: 10 }, { wch: 9 },
-    { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 17 },
+    { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 13 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 17 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Incentive");
 
@@ -139,7 +139,7 @@ export async function exportEditor(name: string, months: EditorMonth[], cats: st
       "Month", "Slab", "Work pattern", "Days available",
       "Minutes delivered", "Minutes with no type", "Minutes not payable",
       "Points earned", "Target points", "Points above target",
-      "Incentive (INR)", "Status",
+      "Incentive (INR)", "Kudos points", "Kudos (INR)", "Status",
       "Videos revised", "Revision rounds", "Points off for revisions",
       "Paid in an earlier month", "Videos reviewed", "Review points",
       ...cats.map((c) => c + " (min)"),
@@ -151,7 +151,7 @@ export async function exportEditor(name: string, months: EditorMonth[], cats: st
       monthName(m.month), m.slab, m.pattern || "", m.days ?? "",
       round(m.minutes, 1), round(m.untyped, 1), round(m.notPay, 1),
       round(m.points, 1), Math.round(m.target), round(m.surplus, 1),
-      Math.round(m.incentive), STATUS[m.status][1],
+      Math.round(m.incentive), round(m.kudos, 1), Math.round(m.kudosInr), STATUS[m.status][1],
       m.revised, m.rounds, round(m.deducted, 1),
       m.carried, m.reviewed, round(m.reviewPts, 1),
       ...cats.map((c) => round(m.byCat[c] || 0, 1)),
@@ -164,7 +164,7 @@ export async function exportEditor(name: string, months: EditorMonth[], cats: st
     "TOTAL", "", "", "",
     round(sum((m) => m.minutes), 1), round(sum((m) => m.untyped), 1), round(sum((m) => m.notPay), 1),
     round(sum((m) => m.points), 1), Math.round(sum((m) => m.target)), round(sum((m) => m.surplus), 1),
-    Math.round(sum((m) => m.incentive)), "",
+    Math.round(sum((m) => m.incentive)), round(sum((m) => m.kudos), 1), Math.round(sum((m) => m.kudosInr)), "",
     sum((m) => m.revised), sum((m) => m.rounds), round(sum((m) => m.deducted), 1),
     sum((m) => m.carried), sum((m) => m.reviewed), round(sum((m) => m.reviewPts), 1),
     ...cats.map((c) => round(sum((m) => m.byCat[c] || 0), 1)),

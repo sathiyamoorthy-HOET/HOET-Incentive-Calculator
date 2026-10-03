@@ -33,6 +33,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       }
       rows={res.rows}
       snapshot={res.config}
+      kudos={res.kudos}
     />
   );
 }

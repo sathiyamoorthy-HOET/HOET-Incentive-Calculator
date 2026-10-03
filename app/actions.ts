@@ -144,7 +144,19 @@ export type SaveRunInput = {
   fileName: string | null;
   rows: SourceRow[];
   config: Config;
+  /** Kudos points by editor name, as typed on Results. */
+  kudos?: Record<string, number>;
 };
+
+/** Only names with a point against them, so the stored map stays small. */
+function cleanKudos(kudos: Record<string, number> | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [name, v] of Object.entries(kudos || {})) {
+    const n = Number(v);
+    if (n > 0) out[name] = n;
+  }
+  return out;
+}
 
 export async function saveRun(
   input: SaveRunInput
@@ -190,7 +202,8 @@ export async function saveRun(
     const { ledger, rows: ledgerRows } = await readLedger(supabase, replacing);
     const rows = settleRows(input.config, input.rows, ledger);
 
-    const c = compute(input.config, rows);
+    const kudos = cleanKudos(input.kudos);
+    const c = compute(input.config, rows, kudos);
     const t = totals(c.out);
     const active = c.out.filter((r) => r.mins > 0.05 || r.projects > 0).length;
     const cleared = c.out.filter((r) => r.surplus > 0).length;
@@ -208,11 +221,13 @@ export async function saveRun(
            ledger has moved on. */
         source_rows: rows,
         config_snapshot: input.config,
+        kudos,
         total_minutes: Math.round(t.m * 10) / 10,
         total_points: Math.round(t.p * 10) / 10,
         total_target: Math.round(t.t),
         total_surplus: Math.round(t.s * 10) / 10,
-        total_incentive: Math.round(t.i),
+        /* What is paid out: the performance incentive plus kudos. */
+        total_incentive: Math.round(t.i + t.k),
         untyped_minutes: Math.round(c.untypedMins * 10) / 10,
         editors_delivered: active,
         editors_cleared: cleared,
@@ -238,6 +253,8 @@ export async function saveRun(
       target_points: r.target,
       surplus_points: r.surplus,
       incentive_inr: r.incentive,
+      kudos_points: r.kudos,
+      kudos_inr: r.kudosInr,
       status: r.status,
       by_category: r.byCat,
     }));
@@ -323,14 +340,21 @@ export async function deleteRun(id: number): Promise<ActionResult> {
 }
 
 export async function loadRun(id: number): Promise<
-  | { ok: true; monthLabel: string; fileName: string | null; rows: SourceRow[]; config: Config }
+  | {
+      ok: true;
+      monthLabel: string;
+      fileName: string | null;
+      rows: SourceRow[];
+      config: Config;
+      kudos: Record<string, number>;
+    }
   | { ok: false; error: string }
 > {
   try {
     const { supabase } = await requireUser();
     const { data, error } = await supabase
       .from("runs")
-      .select("month_label, file_name, source_rows, config_snapshot")
+      .select("month_label, file_name, source_rows, config_snapshot, kudos")
       .eq("id", id)
       .single();
     if (error || !data) return { ok: false, error: error?.message || "That run no longer exists." };
@@ -340,9 +364,59 @@ export async function loadRun(id: number): Promise<
       fileName: data.file_name,
       rows: data.source_rows as SourceRow[],
       config: data.config_snapshot as Config,
+      kudos: (data.kudos as Record<string, number> | null) || {},
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not open the run." };
+  }
+}
+
+/**
+ * Changes the kudos points on a run that is already saved, and re-prices it
+ * with its own snapshot so the stored totals and the per-editor rows follow.
+ * Nothing else about the run moves: the rows, the rate card and the ledger
+ * stay as they were signed off.
+ */
+export async function saveKudos(id: number, input: Record<string, number>): Promise<ActionResult> {
+  try {
+    const { supabase } = await requireUser();
+    const { data, error } = await supabase
+      .from("runs")
+      .select("source_rows, config_snapshot")
+      .eq("id", id)
+      .single();
+    if (error || !data) return { ok: false, error: error?.message || "That run no longer exists." };
+
+    const config = data.config_snapshot as Config;
+    config.revPen = config.revPen ?? [];
+    const kudos = cleanKudos(input);
+    const c = compute(config, data.source_rows as SourceRow[], kudos);
+    const t = totals(c.out);
+
+    const { error: runError } = await supabase
+      .from("runs")
+      .update({ kudos, total_incentive: Math.round(t.i + t.k) })
+      .eq("id", id);
+    if (runError) return { ok: false, error: runError.message };
+
+    /* ponytail: one update per editor; the run's own kudos map above is what
+       a reopened run reads, these only feed the Editors grid. */
+    const results = await Promise.all(
+      c.out.map((r) =>
+        supabase
+          .from("run_results")
+          .update({ kudos_points: r.kudos, kudos_inr: r.kudosInr })
+          .eq("run_id", id)
+          .eq("editor_name", r.name)
+      )
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) return { ok: false, error: failed.error.message };
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not save the kudos points." };
   }
 }
 
@@ -424,6 +498,7 @@ type ResultRow = {
   target_points: number;
   surplus_points: number;
   incentive_inr: number;
+  kudos_inr: number;
   status: RunStatus;
 };
 
@@ -443,7 +518,7 @@ export async function listAccountability(): Promise<Accountability> {
     ? await supabase
         .from("runs")
         .select(
-          "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, status)"
+          "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, kudos_inr, status)"
         )
         .in("id", keptIndex.map((r) => r.id))
     : { data: [] };
@@ -483,12 +558,13 @@ export async function listAccountability(): Promise<Accountability> {
         points: Number(row.points),
         target: Number(row.target_points),
         surplus: Number(row.surplus_points),
-        incentive: Number(row.incentive_inr),
+        /* What was paid: the performance incentive plus any kudos. */
+        incentive: Number(row.incentive_inr) + Number(row.kudos_inr || 0),
         status: row.status,
       };
       if (Number(row.minutes) > 0.05) e.active += 1;
       if (Number(row.surplus_points) > 0) e.cleared += 1;
-      e.incentive += Number(row.incentive_inr);
+      e.incentive += Number(row.incentive_inr) + Number(row.kudos_inr || 0);
       e.surplus += Number(row.surplus_points);
     }
   }
@@ -524,7 +600,11 @@ export type EditorMonth = {
   points: number;
   target: number;
   surplus: number;
+  /** The performance incentive, from points above target. */
   incentive: number;
+  /** Kudos points given that month, and what they paid. */
+  kudos: number;
+  kudosInr: number;
   status: RunStatus;
   byCat: Record<string, number>;
   /** The video-type table for this month: minutes, rate, deductions, points. */
@@ -567,10 +647,10 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
   const { kept: keptIndex } = officialRuns((index as RunRow[] | null) || []);
   if (!keptIndex.length) return null;
 
-  type Row = RunRow & { source_rows: SourceRow[]; config_snapshot: Config };
+  type Row = RunRow & { source_rows: SourceRow[]; config_snapshot: Config; kudos: Record<string, number> | null };
   const { data } = await supabase
     .from("runs")
-    .select("id, month, month_label, file_name, created_at, source_rows, config_snapshot")
+    .select("id, month, month_label, file_name, created_at, source_rows, config_snapshot, kudos")
     .in("id", keptIndex.map((r) => r.id));
 
   const byId = new Map(((data as Row[] | null) || []).map((r) => [r.id, r]));
@@ -584,7 +664,7 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
   for (const run of kept) {
     const config = run.config_snapshot;
     config.revPen = config.revPen ?? [];
-    const me = compute(config, run.source_rows).out.find((r) => r.name === name);
+    const me = compute(config, run.source_rows, run.kudos || {}).out.find((r) => r.name === name);
     /* Absent means this editor was not on the team list when the month was
        run, so the month simply is not part of their history. */
     if (!me) continue;
@@ -607,6 +687,8 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
       target: me.target,
       surplus: me.surplus,
       incentive: me.incentive,
+      kudos: me.kudos,
+      kudosInr: me.kudosInr,
       status: me.status,
       byCat: me.byCat,
       cats,

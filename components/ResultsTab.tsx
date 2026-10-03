@@ -14,10 +14,10 @@ import { parseMonth } from "@/lib/months";
 
 type Col =
   | "name" | "slab" | "mins" | "revised" | "deducted" | "reviewed" | "pts" | "target"
-  | "pctv" | "surplus" | "incentive" | "kudos" | "total" | "status";
+  | "leave" | "pctv" | "surplus" | "incentive" | "kudos" | "total" | "status";
 
 /* Status in the order a manager reads it: cleared, short, blocked, nothing. */
-const STATUS_RANK = { over: 0, under: 1, blocked: 2, none: 3 } as const;
+const STATUS_RANK = { over: 0, under: 1, low: 2, blocked: 3, none: 4 } as const;
 
 function colValue(r: EditorResult, col: Col) {
   switch (col) {
@@ -28,6 +28,7 @@ function colValue(r: EditorResult, col: Col) {
     case "deducted": return r.deducted > 0.05 ? r.deducted : null;
     case "reviewed": return r.reviewed || null;
     case "pts": return r.pts;
+    case "leave": return r.days;
     case "target": return r.target;
     case "pctv": return r.pctv;
     case "surplus": return r.surplus > 0 ? r.surplus : null;
@@ -47,8 +48,9 @@ export default function ResultsTab({
   setMonth,
   update,
   setKudos,
-  kudosDirty,
-  onSaveKudos,
+  setLeave,
+  adjustDirty,
+  onSaveAdjust,
   onRerunLive,
   onSaved,
   goRun,
@@ -63,10 +65,12 @@ export default function ResultsTab({
   update: (fn: (draft: Config) => void) => void;
   /** Gives an editor kudos points for this month. */
   setKudos: (name: string, points: number) => void;
-  /** On a saved run: whether the kudos on screen differ from what is stored. */
-  kudosDirty?: boolean;
-  /** On a saved run: writes the kudos on screen to it. */
-  onSaveKudos?: () => Promise<ActionResult>;
+  /** Records an editor's leave this month, which scales their target down. */
+  setLeave: (name: string, days: number) => void;
+  /** On a saved run: whether the kudos or leave on screen differ from what is stored. */
+  adjustDirty?: boolean;
+  /** On a saved run: writes the kudos and leave on screen to it. */
+  onSaveAdjust?: () => Promise<ActionResult>;
   onRerunLive: () => void;
   onSaved: (id: number) => void;
   goRun: () => void;
@@ -74,7 +78,7 @@ export default function ResultsTab({
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [sort, setSort] = useState<Sort<Col>>(null);
   const [saving, setSaving] = useState(false);
-  const [savingKudos, setSavingKudos] = useState(false);
+  const [savingAdjust, setSavingAdjust] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const linkSel = useRef<Record<string, string>>({});
   const mapSel = useRef<Record<string, string>>({});
@@ -101,6 +105,7 @@ export default function ResultsTab({
   const active = o.filter((r) => r.mins > 0.05 || r.projects > 0);
   const cleared = o.filter((r) => r.surplus > 0);
   const blocked = o.filter((r) => r.status === "blocked");
+  const low = o.filter((r) => r.status === "low");
   const affected = o.filter((r) => r.untyped > 0.05).sort((a, b) => b.untyped - a.untyped);
   const untypedTotal = round(result.untypedMins, 1);
   const readOnly = !!run.snapshot;
@@ -142,6 +147,7 @@ export default function ResultsTab({
       rows: run.rows,
       config: liveConfig,
       kudos: run.kudos,
+      leave: run.leave,
     });
     setSaving(false);
     if (res.ok) {
@@ -152,21 +158,22 @@ export default function ResultsTab({
     }
   }
 
-  async function doSaveKudos() {
-    if (!onSaveKudos) return;
-    setSavingKudos(true);
+  async function doSaveAdjust() {
+    if (!onSaveAdjust) return;
+    setSavingAdjust(true);
     setSaveMsg(null);
-    const res = await onSaveKudos();
-    setSavingKudos(false);
-    setSaveMsg(res.ok ? { ok: true, text: "Kudos points saved to this run." } : { ok: false, text: res.error });
+    const res = await onSaveAdjust();
+    setSavingAdjust(false);
+    setSaveMsg(res.ok ? { ok: true, text: "Saved to this run." } : { ok: false, text: res.error });
   }
 
   return (
     <section className="panel on">
       <h2>Results</h2>
       <p className="sub">
-        Incentive is earned only on points above target. Kudos points pay ₹{config.kudosRate} each,
-        target or no target.
+        Incentive is earned only on points above target. Leave scales the target down to the days
+        worked. Under half the target is flagged for a performance improvement plan. Kudos points
+        pay ₹{config.kudosRate} each, target or no target.
       </p>
 
       {noTypeColumn && (
@@ -308,14 +315,14 @@ export default function ResultsTab({
             {saving ? <span className="spin" /> : run.savedId ? "Save again" : "Save this run"}
           </button>
         )}
-        {readOnly && onSaveKudos && (
+        {readOnly && onSaveAdjust && (
           <button
             className="btn o"
-            onClick={doSaveKudos}
-            disabled={savingKudos || !kudosDirty}
-            title={kudosDirty ? "Store the kudos points typed below on this run" : "Type kudos points in the table to enable"}
+            onClick={doSaveAdjust}
+            disabled={savingAdjust || !adjustDirty}
+            title={adjustDirty ? "Store the leave and kudos typed below on this run" : "Change leave or kudos in the table to enable"}
           >
-            {savingKudos ? <span className="spin" /> : "Save kudos points"}
+            {savingAdjust ? <span className="spin" /> : "Save changes"}
           </button>
         )}
         <button className="btn o" onClick={goRun}>
@@ -535,6 +542,7 @@ export default function ResultsTab({
         />
         {t.rp > 0.05 && <Kpi b={num(t.rp)} s={"Review points, " + round(t.rm, 0) + " min reviewed"} />}
         {t.d > 0.05 && <Kpi b={"−" + num(t.d)} s="Points off for revisions" cls="warn" />}
+        {low.length > 0 && <Kpi b={String(low.length)} s="Under half target, flagged for PIP" cls="warn" />}
         {t.k > 0 && <Kpi b={inr(t.k)} s={"Kudos, " + num(t.kp) + " points"} />}
         <Kpi b={inr(t.i + t.k)} s="Incentive payable" cls="hi" />
       </div>
@@ -543,8 +551,8 @@ export default function ResultsTab({
         <div className="row" style={{ marginBottom: 6 }}>
           <h3 style={{ margin: 0 }}>Every editor</h3>
           <span style={{ color: "var(--muted)", fontSize: 12.5 }}>
-            Click a row to see the breakdown by video type. Type kudos points in the Kudos column
-            {readOnly ? ", then press Save kudos points" : "; they are saved with the run"}.
+            Click a row to see the breakdown by video type. Leave and Kudos can be typed in
+            {readOnly ? ", then press Save changes" : "; they are saved with the run"}.
           </span>
           <button className="btn o" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
             Download summary sheet
@@ -574,6 +582,7 @@ export default function ResultsTab({
                   title="Videos reviewed for other editors, and the points earned"
                 />
                 <SortHead {...head} col="pts" label="Points" right />
+                <SortHead {...head} col="leave" label="Leave" right title="Days of leave this month; the target scales down to the days worked" />
                 <SortHead {...head} col="target" label="Target" right />
                 <SortHead {...head} col="pctv" label="Progress" width={80} />
                 <SortHead {...head} col="surplus" label="Above target" right />
@@ -647,6 +656,18 @@ export default function ResultsTab({
                       )}
                     </td>
                     <td className="r num"><strong>{num(r.pts)}</strong></td>
+                    <td className="r num" onClick={(e) => e.stopPropagation()}>
+                      <NumInput
+                        value={run.leave[r.name] || 0}
+                        min="0"
+                        step="0.5"
+                        width={56}
+                        onCommit={(v) => setLeave(r.name, Math.max(0, v))}
+                      />
+                      {run.leave[r.name] > 0 && (
+                        <span className="muted" style={{ fontSize: 11.5 }}>{" → " + r.days + " d"}</span>
+                      )}
+                    </td>
                     <td className="r num">{r.target}</td>
                     <td>
                       <div className="bar">
@@ -689,7 +710,7 @@ export default function ResultsTab({
                 if (isOpen) {
                   rows.push(
                     <tr key={r.name + "-det"} className="det on">
-                      <td colSpan={14}>
+                      <td colSpan={15}>
                         <div className="detbox">
                           <div className="detmain">
                             <Breakdown cats={catsOf(config, r)} />
@@ -712,6 +733,7 @@ export default function ResultsTab({
                 <td className="r num">{t.d > 0.05 ? "−" + num(t.d) : "—"}</td>
                 <td className="r num">{t.rp > 0.05 ? num(t.rp) : "—"}</td>
                 <td className="r num">{num(t.p)}</td>
+                <td />
                 <td className="r num">{num(t.t)}</td>
                 <td />
                 <td className="r num">{Math.round(t.s)}</td>

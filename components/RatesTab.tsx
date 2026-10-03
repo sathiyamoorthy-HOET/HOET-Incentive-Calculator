@@ -497,8 +497,8 @@ export default function RatesTab({
                       (config.pipMonths ?? 3) +
                       " months running goes on a PIP training. The count is of consecutive months " +
                       "below target, whatever the shortfall; a single month at or above target " +
-                      "starts it again."
-                    : "No PIP threshold is set, so missing target does not trigger one."}
+                      "starts it again. A month under half the target is flagged for a PIP on Results straight away."
+                    : "No PIP threshold is set, so missing target does not trigger one. A month under half the target is still flagged on Results."}
                 </p>
               </>
             )}

@@ -13,6 +13,7 @@ import {
   RateRow,
   Ledger,
   RunStatus,
+  PIP_SHARE,
   Settlement,
   Slab,
   SLABS,
@@ -66,6 +67,25 @@ export function targetOf(c: Config, e: Editor): number {
   const p = patternOf(c, e.pattern);
   if (!p || !p.days) return 0;
   return round((p.target * daysOf(c, e)) / p.days, 0);
+}
+
+/** Days in this month after leave, never below zero. */
+export function daysWorked(c: Config, e: Editor, leave: number | undefined): number {
+  const usual = daysOf(c, e);
+  if (leave == null || !(leave > 0)) return usual;
+  return Math.max(0, round(usual - leave, 2));
+}
+
+/**
+ * The target for one month, scaled to the days actually worked: somebody out
+ * sick for a week is measured against a week less, whether their target
+ * comes from the pattern or was set by hand.
+ */
+export function targetAfterLeave(c: Config, e: Editor, leave: number | undefined): number {
+  const base = targetOf(c, e);
+  const usual = daysOf(c, e);
+  if (leave == null || !(leave > 0) || !usual) return base;
+  return round((base * daysWorked(c, e, leave)) / usual, 0);
 }
 
 /* --------------------------------------------------------------- the payout
@@ -330,7 +350,12 @@ export function kudosInrOf(c: Config, points: number): number {
   return Math.round(Math.max(0, points) * (c.kudosRate ?? 0));
 }
 
-export function compute(c: Config, rows: SourceRow[], kudos: Record<string, number> = {}): Computed {
+export function compute(
+  c: Config,
+  rows: SourceRow[],
+  kudos: Record<string, number> = {},
+  leave: Record<string, number> = {}
+): Computed {
   type Acc = {
     mins: number;
     pts: number;
@@ -507,15 +532,19 @@ export function compute(c: Config, rows: SourceRow[], kudos: Record<string, numb
   const out: EditorResult[] = c.team
     .map((e) => {
       const rec = per.get(e.name) || blank();
-      const target = targetOf(c, e);
+      const off = leave[e.name];
+      const dayCount = daysWorked(c, e, off);
+      const target = targetAfterLeave(c, e, off);
       const pts = round(rec.pts + rec.reviewPts, 1);
       const surplus = Math.max(0, round(pts - target, 1));
-      const worked = rec.mins >= 0.05 || rec.projects > 0;
+      const delivered = rec.mins >= 0.05 || rec.projects > 0;
       let status: RunStatus = "none";
-      if (!worked && rec.reviewMins < 0.05) status = "none";
-      else if (!worked) status = surplus > 0 ? "over" : "under";
+      if (!delivered && rec.reviewMins < 0.05) status = "none";
+      else if (!delivered) status = surplus > 0 ? "over" : "under";
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
+      /* Short of even half the target is not a near miss: flag it for a PIP. */
+      else if (target > 0 && pts < target * PIP_SHARE) status = "low";
       else status = "under";
       const incentive = incentiveOf(c, surplus);
       const kp = Math.max(0, Number(kudos[e.name]) || 0);
@@ -525,7 +554,7 @@ export function compute(c: Config, rows: SourceRow[], kudos: Record<string, numb
         slab: e.slab,
         exp: EXP[e.slab],
         pattern: e.pattern,
-        days: daysOf(c, e),
+        days: dayCount,
         mins: round(rec.mins, 1),
         untyped: round(rec.untyped, 1),
         notPay: round(rec.notPay, 1),

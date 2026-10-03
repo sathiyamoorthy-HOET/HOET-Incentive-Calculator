@@ -18,7 +18,7 @@ function cellValue(c: GridCell | undefined, mode: Mode): number | null {
   if (!c) return null;
   if (mode === "incentive") return c.incentive;
   if (mode === "surplus") return c.minutes > 0.05 ? c.surplus : null;
-  return c.status === "over" ? 2 : c.status === "under" ? 1 : 0;
+  return c.status === "over" ? 3 : c.status === "under" ? 2 : c.status === "low" ? 1 : 0;
 }
 
 const MODES: [Mode, string][] = [

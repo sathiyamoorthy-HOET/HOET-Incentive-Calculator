@@ -315,6 +315,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
   parent.getCell("A2").value =
     "Click an editor's name to open their tracker, and a video's status to open its project in Orbitova. " +
     "Kudos Points (yellow) are what was given in the app; change one here and the kudos incentive follows, at the rate set on the Rate Card sheet. " +
+    "Days Worked is the month less any leave the manager entered; the target is scaled to it. " +
     "Held = no " + basisLabel.toLowerCase() + " date in the export; listed on the Held Projects sheet, not counted.";
   parent.getCell("A2").font = { bold: true, size: 10 };
   parent.getCell("A2").alignment = { wrapText: true, vertical: "top" };
@@ -323,14 +324,14 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
 
   const PCOLS = [
     "Editor Name", "Slab", ...parentCats, "Total Videos", "Total Video Minutes", "Points",
-    "Target", "Above Target", "Performance Incentive (₹)",
+    "Days Worked", "Target", "Above Target", "Performance Incentive (₹)",
     "Kudos Points", "Kudos Incentive (₹)", "Total Incentive (₹)",
   ];
   writeHead(parent, 4, PCOLS);
   parent.getRow(4).height = 42;
   const cV = 3 + parentCats.length; // Total Videos
-  const cM = cV + 1, cP = cV + 2, cTg = cV + 3, cA = cV + 4, cI = cV + 5;
-  const cG = cV + 6, cGI = cV + 7, cTI = cV + 8;
+  const cM = cV + 1, cP = cV + 2, cD = cV + 3, cTg = cV + 4, cA = cV + 5, cI = cV + 6;
+  const cG = cV + 7, cGI = cV + 8, cTI = cV + 9;
 
   /* The ladder as a formula: each rung pays for the points inside it. */
   const incentiveFormula = (above: string) =>
@@ -373,6 +374,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     const pts = round(lines.reduce((a, l) => a + l.pts, 0), 1);
     parent.getCell(pr, cM).value = sh ? { formula: `${sh}$G$${ref!.total}`, result: mins } : mins;
     parent.getCell(pr, cP).value = sh ? { formula: `ROUND(${sh}$J$${ref!.total},1)`, result: pts } : pts;
+    parent.getCell(pr, cD).value = e.days;
     parent.getCell(pr, cTg).value = e.target;
     parent.getCell(pr, cA).value = { formula: `MAX(0,ROUND(${col(cP)}${pr}-${col(cTg)}${pr},1))`, result: e.surplus };
     parent.getCell(pr, cI).value = { formula: `ROUND(${incentiveFormula(`${col(cA)}${pr}`)},0)`, result: e.incentive };
@@ -385,7 +387,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(pr, cTI).value = { formula: `${col(cI)}${pr}+${col(cGI)}${pr}`, result: e.total };
     parent.getCell(pr, cTI).font = { bold: true };
     for (const i of [cI, cGI, cTI]) parent.getCell(pr, i).numFmt = "#,##0";
-    for (const i of [cM, cP, cG, cA]) parent.getCell(pr, i).numFmt = "0.0";
+    for (const i of [cM, cP, cD, cG, cA]) parent.getCell(pr, i).numFmt = "0.0";
     row.commit();
     if (!nVid && pts < 0.05) zero.push(`${e.name} (${e.slab})`);
     pr++;
@@ -411,7 +413,7 @@ export async function buildTracker(input: Input): Promise<ExcelJS.Workbook> {
     parent.getCell(tot + 2, 1).value = `No priced video in the report (${zero.length}): ${zero.join(", ")}`;
     parent.getCell(tot + 2, 1).font = { italic: true, color: { argb: "FF7F7F7F" } };
   }
-  const pw = [28, 8, ...parentCats.map(() => 13), 11, 12, 10, 9, 11, 13, 12, 14, 14];
+  const pw = [28, 8, ...parentCats.map(() => 13), 11, 12, 10, 8, 9, 11, 13, 12, 14, 14];
   pw.forEach((w, i) => (parent.getColumn(i + 1).width = w));
   parent.views = [{ state: "frozen", xSplit: 2, ySplit: 4 }];
 

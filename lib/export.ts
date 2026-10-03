@@ -15,7 +15,7 @@ export async function exportRun(monthLabel: string, out: EditorResult[], c: Conf
   const mo = monthLabel || "Month";
   const aoa: (string | number)[][] = [
     [
-      "Editor", "Slab", "Experience", "Work pattern", "Days available",
+      "Editor", "Slab", "Experience", "Work pattern", "Days worked",
       "Minutes delivered", "Minutes with no type", "Minutes not payable",
       "Videos revised", "Revision rounds", "Points off for revisions",
       "Paid in an earlier month", "Points off for those revisions",
@@ -136,7 +136,7 @@ export async function exportEditor(name: string, months: EditorMonth[], cats: st
   const XLSX = await sheets();
   const aoa: (string | number)[][] = [
     [
-      "Month", "Slab", "Work pattern", "Days available",
+      "Month", "Slab", "Work pattern", "Days worked",
       "Minutes delivered", "Minutes with no type", "Minutes not payable",
       "Points earned", "Target points", "Points above target",
       "Incentive (INR)", "Kudos points", "Kudos (INR)", "Status",

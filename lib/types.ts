@@ -279,9 +279,17 @@ export type ActiveRun = {
    * Results and saved with the run.
    */
   kudos: Record<string, number>;
+  /**
+   * Days of leave taken this month, by editor name. The editor's target for
+   * this run is scaled to the days they were actually in.
+   */
+  leave: Record<string, number>;
 };
 
-export type RunStatus = "over" | "under" | "blocked" | "none";
+export type RunStatus = "over" | "under" | "low" | "blocked" | "none";
+
+/** Below this share of target, a month is flagged for a performance improvement plan. */
+export const PIP_SHARE = 0.5;
 
 /** One line of an editor's video-type breakdown, as Results and the editor page show it. */
 export type EditorCat = {
@@ -396,6 +404,7 @@ export type RunSummary = {
 export const STATUS: Record<RunStatus, [string, string]> = {
   over: ["t", "Above target"],
   under: ["a", "Below target"],
+  low: ["r", "Under half target · PIP"],
   blocked: ["r", "Work not priced"],
   none: ["n", "No work recorded"],
 };

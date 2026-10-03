@@ -242,15 +242,6 @@ export default function AppShell({
           <Mark className="mark" />
           <h1>HOET Incentive calculator</h1>
         </Link>
-        <div className="mo">
-          <span>Month</span>
-          <input
-            type="text"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            placeholder="e.g. August 2026"
-          />
-        </div>
         <div className="sp" />
         <span
           className={"sync " + (changes.length ? "busy" : sync)}

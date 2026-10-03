@@ -65,7 +65,7 @@ export default function EditorTab({ report }: { report: EditorReport }) {
         <div className="note bad">
           This editor appears in saved runs, but none of those runs has a month set, so there is
           nothing to show month by month. Open the run from <Link href="/editors">Editor reports</Link>,
-          type its month in the header box, and save it again.
+          press Re-run with today&apos;s settings, type its month beside Save, and save it again.
         </div>
       </section>
     );

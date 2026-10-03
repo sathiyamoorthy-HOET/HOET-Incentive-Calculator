@@ -93,16 +93,6 @@ header h1{
   white-space:nowrap;
 }
 header .sp{flex:1}
-header .mo{display:flex;align-items:center;gap:8px}
-header .mo>span{
-  font-size:10.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2);
-}
-header input[type=text]{
-  background:var(--t-05);border:1px solid var(--border);color:var(--fg);
-  padding:5px 10px;border-radius:8px;width:158px;font-size:13px;
-}
-header input[type=text]::placeholder{color:var(--muted-2)}
-header input[type=text]:focus{outline:none;border-color:var(--border-strong);background:var(--t-07)}
 header .who{color:var(--muted-2);font-size:11.5px}
 header .lnk{
   background:none;border:0;color:var(--muted);cursor:pointer;padding:6px 2px;font-size:12px;

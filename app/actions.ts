@@ -185,7 +185,7 @@ export async function saveRun(
       return {
         ok: false,
         error:
-          "This run has no month. Type it in the Month box at the top (\u201cAugust 2026\u201d) and save again \u2014 without it, a video re-uploaded next month cannot be recognised as one already paid for.",
+          "This run has no month. Type it in the Month box beside Save (\u201cAugust 2026\u201d) and save again \u2014 without it, a video re-uploaded next month cannot be recognised as one already paid for.",
       };
     }
 

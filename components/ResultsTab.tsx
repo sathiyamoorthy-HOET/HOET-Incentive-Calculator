@@ -114,9 +114,10 @@ export default function ResultsTab({
   const affected = o.filter((r) => r.untyped > 0.05).sort((a, b) => b.untyped - a.untyped);
   const untypedTotal = round(result.untypedMins, 1);
   const readOnly = !!run.snapshot;
-  /* A run cannot be saved without its month, and the header box is easy to
-     miss, so ask for it where the Save button is. */
-  const noMonth = !readOnly && !!setMonth && !parseMonth(month) && !parseMonth(run.fileName);
+  /* A run cannot be saved without its month, so the month sits where the
+     Save button is: filled from the upload window or the file name, and
+     typed over when neither said. */
+  const noMonth = !readOnly && !parseMonth(month) && !parseMonth(run.fileName);
   /* A whole run scoring zero is almost always this: the export had no column
      naming the kind of video, so every minute is unpriced. Say it at the top,
      with the columns the file did have, instead of leaving a zero to explain
@@ -306,15 +307,16 @@ export default function ResultsTab({
         >
           Download detailed report
         </button>
-        {noMonth && (
+        {!readOnly && setMonth && (
           <input
             className="fld-in wide"
             type="text"
             value={month}
-            onChange={(e) => setMonth!(e.target.value)}
+            onChange={(e) => setMonth(e.target.value)}
             placeholder="Month, e.g. September 2026"
             aria-label="Month this run covers"
-            style={{ width: 220 }}
+            title="The month this run is saved as"
+            style={{ width: 200 }}
           />
         )}
         {!readOnly && (

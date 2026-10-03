@@ -104,7 +104,7 @@ export default function EditorsTab({ data }: { data: Accountability }) {
               <Link href={"/history/" + r.id}>{r.fileName || "run " + r.id}</Link>
             </span>
           ))}
-          , type the month in the header box, and save it again.
+          , press Re-run with today&apos;s settings, type the month beside Save, and save it again.
         </div>
       )}
 

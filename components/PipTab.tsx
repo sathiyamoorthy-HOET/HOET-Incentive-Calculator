@@ -15,7 +15,11 @@ import { useApp } from "./AppShell";
 export default function PipTab({ data }: { data: Accountability }) {
   const { config } = useApp();
   const pct = Math.round(pipShareOf(config) * 100);
-  const { months, editors } = data;
+  const { months } = data;
+  /* Managers are marked as reviewers on the Team page: they review rather
+     than edit, so a target is not theirs to miss. */
+  const reviewers = new Set(config.team.filter((t) => t.reviewer).map((t) => t.name));
+  const editors = data.editors.filter((e) => !reviewers.has(e.name));
   /* Newest month first, and open by default: that is the one being asked about. */
   const order = months.slice().reverse();
   const [key, setKey] = useState(order[0]?.key ?? "");
@@ -35,7 +39,8 @@ export default function PipTab({ data }: { data: Accountability }) {
       <p className="sub">
         Editors who scored under {pct}% of their target in a saved month, kudos points included.
         The line is set on the <Link href="/rate-card">Rate card</Link>; the rule for a PIP after{" "}
-        {config.pipMonths ?? 3} months below target is written there too.
+        {config.pipMonths ?? 3} months below target is written there too. Anyone ticked as a
+        reviewer on <Link href="/team">Team</Link> is left out, since managers review rather than edit.
       </p>
 
       {!month ? (

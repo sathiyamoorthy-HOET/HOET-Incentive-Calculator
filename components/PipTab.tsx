@@ -32,6 +32,17 @@ export default function PipTab({ data }: { data: Accountability }) {
       .map(({ e, c }) => ({ e, c: c as GridCell }))
       .sort((a, b) => (a.c.points + a.c.kudos) / a.c.target - (b.c.points + b.c.kudos) / b.c.target);
   const rows = month ? rowsOf(month.key) : [];
+  /* The five with the least to show for the month, whether or not they are
+     under the line, so the panel is never empty on a good month. */
+  const share = (c: GridCell) => (c.points + c.kudos) / c.target;
+  const support = month
+    ? editors
+        .map((e) => ({ e, c: e.cells[month.key] as GridCell | undefined }))
+        .filter(({ c }) => c && c.target > 0 && c.status !== "none" && c.status !== "blocked")
+        .map(({ e, c }) => ({ e, c: c as GridCell }))
+        .sort((a, b) => share(a.c) - share(b.c))
+        .slice(0, 5)
+    : [];
 
   return (
     <section className="panel on">
@@ -114,15 +125,16 @@ export default function PipTab({ data }: { data: Accountability }) {
 
         <aside className="stack">
           <div className="card">
-            <h3>How they have been doing</h3>
+            <h3>Five who could use the most support</h3>
             <p className="cardhint sub">
-              Every saved month for each editor on the list, as a share of that month&apos;s target,
-              kudos included. A PIP is due after {config.pipMonths ?? 3} months below target in a row.
+              The five furthest from target in {monthName(month.key)}, kudos included, with every
+              saved month beside them so a hard month can be told from a pattern. A PIP is due
+              after {config.pipMonths ?? 3} months below target in a row.
             </p>
-            {!rows.length ? (
-              <div className="empty">Nobody to show for {monthName(month.key)}.</div>
+            {!support.length ? (
+              <div className="empty">Nobody delivered work in {monthName(month.key)}.</div>
             ) : (
-              rows.map(({ e }) => <Trend key={e.name} e={e} months={months.map((m) => m.key)} pct={pct} due={config.pipMonths ?? 3} />)
+              support.map(({ e }) => <Trend key={e.name} e={e} months={months.map((m) => m.key)} pct={pct} due={config.pipMonths ?? 3} />)
             )}
           </div>
         </aside>
@@ -142,13 +154,16 @@ function Trend({ e, months, pct, due }: { e: GridEditor; months: string[]; pct: 
     streak++;
   }
   const share = (c: GridCell) => (c.points + c.kudos) / c.target;
+  const latest = cells[cells.length - 1];
   return (
     <div style={{ padding: "10px 0", borderTop: "1px solid var(--border)" }}>
       <div className="row" style={{ gap: 8, marginBottom: 6 }}>
         <Link href={"/editors/" + encodeURIComponent(e.name)}><strong>{e.name}</strong></Link>
         <span className="muted" style={{ fontSize: 12 }}>{e.slab}</span>
         <span className={"pill " + (due > 0 && streak >= due ? "r" : streak > 1 ? "a" : "n")} style={{ marginLeft: "auto" }}>
-          {streak} {streak === 1 ? "month" : "months"} below target{due > 0 && streak >= due ? " · PIP due" : ""}
+          {streak === 0 && latest
+            ? "On target"
+            : `${streak} ${streak === 1 ? "month" : "months"} below target${due > 0 && streak >= due ? " · PIP due" : ""}`}
         </span>
       </div>
       <table style={{ width: "100%" }}>

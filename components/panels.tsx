@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { compute } from "@/lib/calc";
 import { monthName, parseMonth } from "@/lib/months";
@@ -106,7 +106,7 @@ export function SavedRunPanel({
   leave: Record<string, number>;
   away: Record<string, boolean>;
 }) {
-  const { config, update, setRun, setMonth } = useApp();
+  const { config, update, setRun, setMonth, setDirtyPage } = useApp();
   const router = useRouter();
 
   /* Kudos, leave and away marks are what a saved run still takes: typed here,
@@ -114,6 +114,13 @@ export function SavedRunPanel({
   const [adj, setAdj] = useState({ kudos: savedKudos, leave: savedLeave, away: savedAway });
   const [stored, setStored] = useState(adj);
   const dirty = useMemo(() => !sameMap(adj.kudos, stored.kudos) || !sameMap(adj.leave, stored.leave) || !sameMap(adj.away, stored.away), [adj, stored]);
+
+  /* Leaving with these unsaved should ask first, by the rail or the tab. */
+  useEffect(() => {
+    setDirtyPage(dirty);
+    return () => setDirtyPage(false);
+  }, [dirty, setDirtyPage]);
+  const mayLeave = () => !dirty || confirm("Changes on this run are not saved yet. Leave without saving?");
 
   const run = useMemo<ActiveRun>(
     () => ({ rows, fileName, snapshot, savedId: id, kudos: adj.kudos, leave: adj.leave, away: adj.away }),
@@ -142,12 +149,14 @@ export function SavedRunPanel({
         return res;
       }}
       onRerunLive={() => {
+        if (!mayLeave()) return;
         setMonth(monthLabel);
         setRun({ rows, fileName, snapshot: null, savedId: null, kudos: adj.kudos, leave: adj.leave, away: adj.away });
         router.push("/run");
       }}
       onSaved={() => {}}
       goRun={() => {
+        if (!mayLeave()) return;
         setRun(null);
         router.push("/run");
       }}

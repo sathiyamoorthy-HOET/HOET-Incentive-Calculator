@@ -79,10 +79,17 @@ export default function EditCard({
         {meta && <span className="cardmeta">{meta}</span>}
         <button
           className={"btn " + (editing ? "" : "o")}
-          onClick={() => setEditing((e) => !e)}
+          onClick={async () => {
+            if (!editing) return setEditing(true);
+            /* A guarded card's Save is the bar's Save: everything staged on the
+               page goes together. A refusal keeps the card open with the
+               reason on the bar. */
+            if (guarded && app && !(await app.endStage(true))) return;
+            setEditing(false);
+          }}
           aria-pressed={editing}
         >
-          {editing ? (guarded ? "Close" : "Done") : <><Pencil /> Edit</>}
+          {editing ? (guarded ? "Save" : "Done") : <><Pencil /> Edit</>}
         </button>
       </div>
 

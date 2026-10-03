@@ -51,8 +51,13 @@ type AppState = {
   staging: boolean;
   /** What is waiting, in words. Empty when nothing has actually changed. */
   changes: string[];
-  /** Keep the staged edits (true) or put the rate card back as it was. */
-  endStage: (save: boolean) => void;
+  /** Keep the staged edits (true) or put the rate card back as it was. True when it went through. */
+  endStage: (save: boolean) => Promise<boolean>;
+  /**
+   * Tells the shell a page holds edits that are not saved anywhere, so that
+   * leaving it, by the rail or by closing the tab, asks first.
+   */
+  setDirtyPage: (dirty: boolean) => void;
   month: string;
   setMonth: (m: string) => void;
   run: ActiveRun | null;
@@ -104,6 +109,8 @@ export default function AppShell({
      browser instead of being pushed: money is not changed for everybody on a
      700ms timer. The baseline is what Discard puts back. */
   const [baseline, setBaseline] = useState<Config | null>(null);
+  /* A page's own unsaved edits, such as kudos typed on a saved run. */
+  const [dirtyPage, setDirtyPage] = useState(false);
   const guards = useRef(0);
   /* Both of these are read from event handlers, never while rendering, so they
      are kept in step after the commit rather than during it. */
@@ -183,15 +190,15 @@ export default function AppShell({
     );
   }, []);
 
-  const endStage = useCallback(async (save: boolean) => {
+  const endStage = useCallback(async (save: boolean): Promise<boolean> => {
     const base = baseline;
-    if (!base) return;
+    if (!base) return true;
     if (save) {
       /* Staged edits never scheduled a flush, so this is the first the
          database hears of them. A refusal leaves them exactly where they were:
          still staged, still listed, and the reason is on screen. */
       const ok = await flush();
-      if (!ok) return;
+      if (!ok) return false;
       setBaseline(guards.current > 0 ? JSON.parse(JSON.stringify(configRef.current)) : null);
     } else {
       const back: Config = JSON.parse(JSON.stringify(base));
@@ -202,6 +209,7 @@ export default function AppShell({
       setSync("idle");
       setSyncMsg("");
     }
+    return true;
   }, [baseline, flush]);
 
   const changes = useMemo(
@@ -214,11 +222,11 @@ export default function AppShell({
   /* An edit lives in the browser for up to the debounce before it reaches the
      database. Closing the tab in that window would drop it silently, so ask. */
   useEffect(() => {
-    if (sync !== "busy" && sync !== "err" && changes.length === 0) return;
+    if (sync !== "busy" && sync !== "err" && changes.length === 0 && !dirtyPage) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [sync, changes.length]);
+  }, [sync, changes.length, dirtyPage]);
 
   const activeConfig = run?.snapshot ?? config;
   const result = useMemo(
@@ -229,7 +237,7 @@ export default function AppShell({
   const value = useMemo<AppState>(
     () => ({
       config, activeConfig, update, openGuard, closeGuard,
-      staging: baseline !== null, changes, endStage,
+      staging: baseline !== null, changes, endStage, setDirtyPage,
       month, setMonth, run, setRun, result,
     }),
     [config, activeConfig, update, openGuard, closeGuard, baseline, changes, endStage, month, run, result]
@@ -271,6 +279,9 @@ export default function AppShell({
             aria-current={
               pathname === href || pathname.startsWith(href + "/") ? "page" : undefined
             }
+            onClick={(e) => {
+              if (dirtyPage && !confirm("Changes on this page are not saved yet. Leave without saving?")) e.preventDefault();
+            }}
           >
             {label}
           </Link>

@@ -26,6 +26,7 @@ const TABS = [
   ["/run", "Run a month"],
   ["/history", "History"],
   ["/editors", "Editor reports"],
+  ["/pip", "PIP"],
   ["/team", "Team"],
   ["/rate-card", "Rate card"],
   ["/video-types", "Video types"],

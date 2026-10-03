@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { cats, catsOf, inr, num, payParts, round, totals } from "@/lib/calc";
+import { cats, catsOf, inr, kudosRateOf, num, payParts, pipShareOf, round, totals } from "@/lib/calc";
 import Breakdown from "./Breakdown";
 import NumInput from "./NumInput";
 import { exportRun } from "@/lib/export";
@@ -172,8 +172,9 @@ export default function ResultsTab({
       <h2>Results</h2>
       <p className="sub">
         Incentive is earned only on points above target. Leave scales the target down to the days
-        worked. Under half the target is flagged for a performance improvement plan. Kudos points
-        pay ₹{config.kudosRate} each, target or no target.
+        worked. Under {Math.round(pipShareOf(config) * 100)}% of target, kudos included, is flagged
+        for a performance improvement plan. Kudos points pay ₹{kudosRateOf(config)} each, target or
+        no target.
       </p>
 
       {noTypeColumn && (
@@ -542,7 +543,7 @@ export default function ResultsTab({
         />
         {t.rp > 0.05 && <Kpi b={num(t.rp)} s={"Review points, " + round(t.rm, 0) + " min reviewed"} />}
         {t.d > 0.05 && <Kpi b={"−" + num(t.d)} s="Points off for revisions" cls="warn" />}
-        {low.length > 0 && <Kpi b={String(low.length)} s="Under half target, flagged for PIP" cls="warn" />}
+        {low.length > 0 && <Kpi b={String(low.length)} s="Flagged for PIP" cls="warn" />}
         {t.k > 0 && <Kpi b={inr(t.k)} s={"Kudos, " + num(t.kp) + " points"} />}
         <Kpi b={inr(t.i + t.k)} s="Incentive payable" cls="hi" />
       </div>
@@ -785,7 +786,7 @@ function PaySplit({ config, r }: { config: Config; r: EditorResult }) {
                 {round(r.kudos, 1)}
                 <span className="unit">pts</span>
               </td>
-              <td className="r num muted">× ₹{config.kudosRate}</td>
+              <td className="r num muted">× ₹{kudosRateOf(config)}</td>
               <td className="r num">{inr(r.kudosInr)}</td>
             </tr>
           )}

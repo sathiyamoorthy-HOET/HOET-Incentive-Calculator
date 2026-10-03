@@ -120,6 +120,11 @@ export type Config = {
    */
   kudosRate: number;
   /**
+   * The PIP line as a percentage of target. A month whose points, kudos
+   * included, fall under it is flagged for a performance improvement plan.
+   */
+  pipPct: number;
+  /**
    * What a revision costs, as a percentage of that video's points, indexed by
    * how many rounds it took: [0] is one revision, [1] is two, and so on. A
    * video revised more times than the list is long is charged the last entry.
@@ -288,9 +293,6 @@ export type ActiveRun = {
 
 export type RunStatus = "over" | "under" | "low" | "blocked" | "none";
 
-/** Below this share of target, a month is flagged for a performance improvement plan. */
-export const PIP_SHARE = 0.5;
-
 /** One line of an editor's video-type breakdown, as Results and the editor page show it. */
 export type EditorCat = {
   cat: string;
@@ -404,7 +406,7 @@ export type RunSummary = {
 export const STATUS: Record<RunStatus, [string, string]> = {
   over: ["t", "Above target"],
   under: ["a", "Below target"],
-  low: ["r", "Under half target · PIP"],
+  low: ["r", "Flagged for PIP"],
   blocked: ["r", "Work not priced"],
   none: ["n", "No work recorded"],
 };

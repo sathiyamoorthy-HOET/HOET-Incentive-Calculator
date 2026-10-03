@@ -483,6 +483,8 @@ export type MonthCol = {
 export type GridCell = {
   minutes: number;
   points: number;
+  /** Kudos points given that month; they count towards the PIP line. */
+  kudos: number;
   target: number;
   surplus: number;
   incentive: number;
@@ -526,6 +528,7 @@ type ResultRow = {
   target_points: number;
   surplus_points: number;
   incentive_inr: number;
+  kudos_points: number;
   kudos_inr: number;
   status: RunStatus;
 };
@@ -546,7 +549,7 @@ export async function listAccountability(): Promise<Accountability> {
     ? await supabase
         .from("runs")
         .select(
-          "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, kudos_inr, status)"
+          "id, month, month_label, file_name, created_at, run_results (editor_name, slab, minutes, points, target_points, surplus_points, incentive_inr, kudos_points, kudos_inr, status)"
         )
         .in("id", keptIndex.map((r) => r.id))
     : { data: [] };
@@ -584,6 +587,7 @@ export async function listAccountability(): Promise<Accountability> {
       e.cells[run.month as string] = {
         minutes: Number(row.minutes),
         points: Number(row.points),
+        kudos: Number(row.kudos_points || 0),
         target: Number(row.target_points),
         surplus: Number(row.surplus_points),
         /* What was paid: the performance incentive plus any kudos. */

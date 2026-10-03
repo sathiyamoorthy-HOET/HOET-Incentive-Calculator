@@ -13,7 +13,6 @@ import {
   RateRow,
   Ledger,
   RunStatus,
-  PIP_SHARE,
   Settlement,
   Slab,
   SLABS,
@@ -345,9 +344,28 @@ export function ledgerAfter(c: Config, rows: SourceRow[], ledger: Ledger): Ledge
   return next;
 }
 
-/** What kudos points pay: a flat rate a point, target or no target. */
+/**
+ * What a kudos point pays. A run saved before the rate existed has none in
+ * its snapshot, so it falls back to the ladder's first rung, as the live
+ * rate card did before it was set.
+ */
+export function kudosRateOf(c: Config): number {
+  return c.kudosRate ?? payBandsOf(c)[0]?.rate ?? 0;
+}
+
 export function kudosInrOf(c: Config, points: number): number {
-  return Math.round(Math.max(0, points) * (c.kudosRate ?? 0));
+  return Math.round(Math.max(0, points) * kudosRateOf(c));
+}
+
+/** The PIP line as a share of target, 0 to 1. Half, for a snapshot from before it was a setting. */
+export function pipShareOf(c: Config): number {
+  const pct = Number(c.pipPct);
+  return Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) / 100 : 0.5;
+}
+
+/** Whether a month falls under the PIP line. Kudos points count: they are points the manager gave. */
+export function underPipLine(c: Config, pts: number, kudos: number, target: number): boolean {
+  return target > 0 && pts + Math.max(0, kudos) < target * pipShareOf(c);
 }
 
 export function compute(
@@ -537,16 +555,17 @@ export function compute(
       const target = targetAfterLeave(c, e, off);
       const pts = round(rec.pts + rec.reviewPts, 1);
       const surplus = Math.max(0, round(pts - target, 1));
+      const incentive = incentiveOf(c, surplus);
+      const kudosPts = Math.max(0, Number(kudos[e.name]) || 0);
       const delivered = rec.mins >= 0.05 || rec.projects > 0;
       let status: RunStatus = "none";
       if (!delivered && rec.reviewMins < 0.05) status = "none";
       else if (!delivered) status = surplus > 0 ? "over" : "under";
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
-      /* Short of even half the target is not a near miss: flag it for a PIP. */
-      else if (target > 0 && pts < target * PIP_SHARE) status = "low";
+      /* Short of even the PIP line is not a near miss: flag it. */
+      else if (underPipLine(c, pts, kudosPts, target)) status = "low";
       else status = "under";
-      const incentive = incentiveOf(c, surplus);
       const kp = Math.max(0, Number(kudos[e.name]) || 0);
       const kudosInr = kudosInrOf(c, kp);
       return {

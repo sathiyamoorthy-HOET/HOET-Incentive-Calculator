@@ -406,6 +406,22 @@ export default function RatesTab({
                     )}
                   </div>
                   <div>
+                    <label className="fld" htmlFor="pippct" title="A month whose points, kudos included, fall under this share of target is flagged for a PIP">
+                      PIP line, % of target
+                    </label>
+                    {editing ? (
+                      <NumInput
+                        className="fld-in"
+                        value={config.pipPct ?? 50}
+                        step="5"
+                        min="0"
+                        onCommit={(v) => update((d) => { d.pipPct = Math.min(100, Math.max(0, v)); })}
+                      />
+                    ) : (
+                      <div className="val">{config.pipPct ?? 50}%</div>
+                    )}
+                  </div>
+                  <div>
                     <label className="fld" htmlFor="pip">Months below target before a PIP</label>
                     {editing ? (
                       <NumInput
@@ -497,8 +513,8 @@ export default function RatesTab({
                       (config.pipMonths ?? 3) +
                       " months running goes on a PIP training. The count is of consecutive months " +
                       "below target, whatever the shortfall; a single month at or above target " +
-                      "starts it again. A month under half the target is flagged for a PIP on Results straight away."
-                    : "No PIP threshold is set, so missing target does not trigger one. A month under half the target is still flagged on Results."}
+                      "starts it again. A month under " + (config.pipPct ?? 50) + "% of target, kudos points included, is flagged straight away and listed on the PIP page."
+                    : "No PIP threshold is set, so missing target does not trigger one. A month under " + (config.pipPct ?? 50) + "% of target, kudos points included, is still flagged and listed on the PIP page."}
                 </p>
               </>
             )}

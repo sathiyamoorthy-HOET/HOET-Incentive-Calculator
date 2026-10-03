@@ -74,6 +74,7 @@ export function describeChanges(a: Config, b: Config): string[] {
 
   if (a.ppd !== b.ppd) out.push(`Points per working day: ${n(a.ppd)} → ${n(b.ppd)}`);
   if (a.kudosRate !== b.kudosRate) out.push(`Kudos, ₹ a point: ${n(a.kudosRate)} → ${n(b.kudosRate)}`);
+  if ((a.pipPct ?? 50) !== (b.pipPct ?? 50)) out.push(`PIP line, % of target: ${n(a.pipPct ?? 50)} → ${n(b.pipPct ?? 50)}`);
   if ((a.pipMonths ?? 3) !== (b.pipMonths ?? 3)) {
     out.push(
       `Months below target before a PIP: ${n(a.pipMonths ?? 3)} → ${n(b.pipMonths ?? 3)}`

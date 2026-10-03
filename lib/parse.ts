@@ -281,7 +281,10 @@ function fromDeliverables(d: Sheet, sheets: Sheet[]): ParseResult | null {
 
     const code = cell(r, ci);
     const who = editor.get(code);
-    if (!who) {
+    /* Orbitova writes an em dash for a project nobody is assigned to. That is
+       not a name: if it reached Results somebody could link it to an editor,
+       and every unassigned video thereafter would be theirs. */
+    if (!who || who === "\u2014" || who === "-") {
       orphans++;
       continue;
     }

@@ -14,7 +14,7 @@ export default async function Page() {
   /* Both reads are row-level-security gated to staff, so a non-staff account
      that reaches this page simply sees an empty list. */
   const [{ data: allowed }, { data: profiles }] = await Promise.all([
-    supabase.from("allowed_emails").select("email, note, added_at").order("email"),
+    supabase.from("allowed_emails").select("email, note, added_at, is_super").order("email"),
     supabase.from("profiles").select("email, full_name"),
   ]);
 
@@ -30,6 +30,7 @@ export default async function Page() {
     name: byEmail.get(a.email) ?? null,
     hasAccount: byEmail.has(a.email),
     isYou: a.email === mine,
+    isSuper: !!a.is_super,
   }));
 
   return <AccessTab rows={rows} canCreate={!!serviceKey()} />;

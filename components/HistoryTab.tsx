@@ -7,7 +7,16 @@ import { inr, num } from "@/lib/calc";
 import { RunSummary } from "@/lib/types";
 import { deleteRun } from "@/app/actions";
 
-export default function HistoryTab({ runs, me }: { runs: RunSummary[]; me: string | null }) {
+export default function HistoryTab({
+  runs,
+  me,
+  superAdmin,
+}: {
+  runs: RunSummary[];
+  me: string | null;
+  /** May delete any run, not only their own. */
+  superAdmin: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,9 +92,9 @@ export default function HistoryTab({ runs, me }: { runs: RunSummary[]; me: strin
                         </Link>
                         <button
                           className="btn o"
-                          disabled={busy === r.id || (!!me && !!r.created_by && r.created_by !== me)}
+                          disabled={busy === r.id || (!superAdmin && !!me && !!r.created_by && r.created_by !== me)}
                           title={
-                            me && r.created_by && r.created_by !== me
+                            !superAdmin && me && r.created_by && r.created_by !== me
                               ? "Saved by " + (r.author || "someone else") + ", so only they can delete it"
                               : undefined
                           }
@@ -104,9 +113,9 @@ export default function HistoryTab({ runs, me }: { runs: RunSummary[]; me: strin
       </div>
 
       <p className="sub">
-        Only the person who saved a run can delete it; a Delete button you cannot press says who
-        that is. Everyone signed in can open any run, and saving a month again replaces the earlier
-        save for that month wherever the numbers are added up.
+        Only the person who saved a run, or a super admin, can delete it; a Delete button you
+        cannot press says who saved it. Everyone signed in can open any run, and saving a month
+        again replaces the earlier save for that month wherever the numbers are added up.
       </p>
     </section>
   );

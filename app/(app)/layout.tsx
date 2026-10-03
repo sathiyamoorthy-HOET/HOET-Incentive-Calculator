@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import type { Config } from "@/lib/types";
+import { withDefaults } from "@/lib/calc";
 
 export const dynamic = "force-dynamic";
 
@@ -58,16 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const label =
     (claims.user_metadata?.full_name as string | undefined) || claims.email || "Signed in";
 
-  /* The revision ladder and the payout ladder each arrive only once their own
-     migration has been applied; until then the flat rate is what pays. */
-  const shared = config as Config;
-  shared.revPen = shared.revPen ?? [];
-  shared.payBands = shared.payBands ?? [];
-  shared.pipMonths = shared.pipMonths ?? 3;
-  /* Until its migration is applied a kudos point pays the ladder's first rung. */
-  shared.kudosRate = shared.kudosRate ?? shared.payBands[0]?.rate ?? 175;
-  /* Half of target is the PIP line until its migration is applied. */
-  shared.pipPct = shared.pipPct ?? 50;
+  const shared = withDefaults(config as Config);
 
   return (
     <AppShell initialConfig={shared} userLabel={label}>

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   catsOf,
   compute,
+  withDefaults,
   settleKey,
   ledgerAfter,
   matchEditor,
@@ -27,6 +28,18 @@ async function requireUser() {
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
+
+/** The shared rate card as it is now, for a tab that has been open a while. */
+export async function loadConfig(): Promise<Config | null> {
+  try {
+    const { supabase } = await requireUser();
+    const { data, error } = await supabase.rpc("get_config");
+    if (error || !data) return null;
+    return withDefaults(data as Config);
+  } catch {
+    return null;
+  }
+}
 
 export async function saveConfig(config: Config): Promise<ActionResult> {
   try {
@@ -356,7 +369,7 @@ export async function deleteRun(id: number): Promise<ActionResult> {
     if (!data || !data.length) {
       return {
         ok: false,
-        error: "Only the person who saved this run can delete it. Ask them to, or save the month again yourself: the newest save is the one that counts.",
+        error: "Only the person who saved this run, or a super admin, can delete it. Ask them to, or save the month again yourself: the newest save is the one that counts.",
       };
     }
     revalidatePath("/", "layout");

@@ -437,4 +437,6 @@ export type AccessRow = {
   name: string | null;
   hasAccount: boolean;
   isYou: boolean;
+  /** May also delete runs other people saved. */
+  isSuper: boolean;
 };

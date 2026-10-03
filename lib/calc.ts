@@ -19,6 +19,20 @@ import {
   SourceRow,
 } from "./types";
 
+/**
+ * Fills in what a rate card read from the database may still lack: each of
+ * these arrived with its own migration, and a snapshot or a row from before
+ * it is priced the way the app priced it then.
+ */
+export function withDefaults(c: Config): Config {
+  c.revPen = c.revPen ?? [];
+  c.payBands = c.payBands ?? [];
+  c.pipMonths = c.pipMonths ?? 3;
+  c.kudosRate = c.kudosRate ?? c.payBands[0]?.rate ?? 175;
+  c.pipPct = c.pipPct ?? 50;
+  return c;
+}
+
 /** A report name must score at least this against a team name to be counted. */
 const MATCH_THRESHOLD = 0.72;
 

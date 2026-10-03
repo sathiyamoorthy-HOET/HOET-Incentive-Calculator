@@ -63,9 +63,11 @@ export default function AccessTab({
     <section className="panel on narrow">
       <h2>Admin</h2>
       <p className="sub">
-        Who can sign in. Everyone here sees the same rate card, team and history; the only thing
-        held back is deleting someone else&apos;s saved run. The list is the gate — the database
-        refuses to create an account for an address that is not on it, however they arrive.
+        Who can sign in. Everyone here sees the same rate card, team and history, and a change any
+        of them saves is what everyone sees from then on. The only thing held back is deleting
+        someone else&apos;s saved run, which a super admin may also do. The list is the gate — the
+        database refuses to create an account for an address that is not on it, however they
+        arrive.
       </p>
 
       {error && <div className="note bad">{error}</div>}
@@ -200,6 +202,7 @@ export default function AccessTab({
                     <td>
                       {r.name || r.note || <span className="muted">—</span>}
                       {r.isYou && <span className="muted" style={{ fontSize: 12 }}> · you</span>}
+                      {r.isSuper && <span className="pill n" style={{ marginLeft: 8 }}>Super admin</span>}
                     </td>
                     <td className="wrap">{r.email}</td>
                     <td>

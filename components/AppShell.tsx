@@ -16,7 +16,7 @@ import { compute } from "@/lib/calc";
 import { describeChanges } from "@/lib/changes";
 import { ActiveRun, Computed, Config } from "@/lib/types";
 import { configProblem } from "@/lib/validate";
-import { saveConfig } from "@/app/actions";
+import { loadConfig, saveConfig } from "@/app/actions";
 import { signOut } from "@/app/login/actions";
 import Mark from "./Mark";
 import ThemeToggle from "./ThemeToggle";
@@ -227,6 +227,28 @@ export default function AppShell({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [sync, changes.length, dirtyPage]);
+
+  /* Another admin may have saved since this tab was opened, and the shell
+     keeps its copy across navigations. Whenever the tab comes back into view,
+     read the shared rate card again, unless there are edits here that are
+     not saved yet, which would otherwise be lost under it. */
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (stagingRef.current || pendingConfig.current || timer.current) return;
+      const fresh = await loadConfig();
+      if (!fresh || stagingRef.current || pendingConfig.current) return;
+      if (JSON.stringify(fresh) === JSON.stringify(configRef.current)) return;
+      configRef.current = fresh;
+      setConfig(fresh);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   const activeConfig = run?.snapshot ?? config;
   const result = useMemo(

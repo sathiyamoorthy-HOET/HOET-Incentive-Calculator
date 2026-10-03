@@ -44,6 +44,9 @@ export function RunPanel() {
         setLeave={(name, v) =>
           setRun((r) => (r ? { ...r, leave: { ...r.leave, [name]: v } } : r))
         }
+        setAway={(name, v) =>
+          setRun((r) => (r ? { ...r, away: { ...r.away, [name]: v } } : r))
+        }
         onRerunLive={() => setRun((r) => (r ? { ...r, snapshot: null, savedId: null } : r))}
         onSaved={(id) => setRun((r) => (r ? { ...r, savedId: id } : r))}
         goRun={() => setRun(null)}
@@ -72,7 +75,7 @@ export function RunPanel() {
         const settled = await settleUpload(config, rows, label);
         if (!settled.ok) return settled.error;
 
-        setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null, kudos: {}, leave: {} });
+        setRun({ rows: settled.rows, held, fileName, source, snapshot: null, savedId: null, kudos: {}, leave: {}, away: {} });
         return null;
       }}
     />
@@ -92,6 +95,7 @@ export function SavedRunPanel({
   snapshot,
   kudos: savedKudos,
   leave: savedLeave,
+  away: savedAway,
 }: {
   id: number;
   monthLabel: string;
@@ -100,21 +104,22 @@ export function SavedRunPanel({
   snapshot: Config;
   kudos: Record<string, number>;
   leave: Record<string, number>;
+  away: Record<string, boolean>;
 }) {
   const { config, update, setRun, setMonth } = useApp();
   const router = useRouter();
 
-  /* Kudos and leave are what a saved run still takes: typed here,
+  /* Kudos, leave and away marks are what a saved run still takes: typed here,
      saved with their own button, and the figures every page then shows. */
-  const [adj, setAdj] = useState({ kudos: savedKudos, leave: savedLeave });
+  const [adj, setAdj] = useState({ kudos: savedKudos, leave: savedLeave, away: savedAway });
   const [stored, setStored] = useState(adj);
-  const dirty = useMemo(() => !sameMap(adj.kudos, stored.kudos) || !sameMap(adj.leave, stored.leave), [adj, stored]);
+  const dirty = useMemo(() => !sameMap(adj.kudos, stored.kudos) || !sameMap(adj.leave, stored.leave) || !sameMap(adj.away, stored.away), [adj, stored]);
 
   const run = useMemo<ActiveRun>(
-    () => ({ rows, fileName, snapshot, savedId: id, kudos: adj.kudos, leave: adj.leave }),
+    () => ({ rows, fileName, snapshot, savedId: id, kudos: adj.kudos, leave: adj.leave, away: adj.away }),
     [rows, fileName, snapshot, id, adj]
   );
-  const result = useMemo(() => compute(snapshot, rows, adj.kudos, adj.leave), [snapshot, rows, adj]);
+  const result = useMemo(() => compute(snapshot, rows, adj.kudos, adj.leave, adj.away), [snapshot, rows, adj]);
 
   return (
     <ResultsTab
@@ -126,6 +131,7 @@ export function SavedRunPanel({
       update={update}
       setKudos={(name, v) => setAdj((a) => ({ ...a, kudos: { ...a.kudos, [name]: v } }))}
       setLeave={(name, v) => setAdj((a) => ({ ...a, leave: { ...a.leave, [name]: v } }))}
+      setAway={(name, v) => setAdj((a) => ({ ...a, away: { ...a.away, [name]: v } }))}
       adjustDirty={dirty}
       onSaveAdjust={async () => {
         const res = await saveAdjustments(id, adj);
@@ -137,7 +143,7 @@ export function SavedRunPanel({
       }}
       onRerunLive={() => {
         setMonth(monthLabel);
-        setRun({ rows, fileName, snapshot: null, savedId: null, kudos: adj.kudos, leave: adj.leave });
+        setRun({ rows, fileName, snapshot: null, savedId: null, kudos: adj.kudos, leave: adj.leave, away: adj.away });
         router.push("/run");
       }}
       onSaved={() => {}}
@@ -149,9 +155,9 @@ export function SavedRunPanel({
   );
 }
 
-function sameMap(a: Record<string, number>, b: Record<string, number>): boolean {
+function sameMap<T>(a: Record<string, T>, b: Record<string, T>): boolean {
   const names = new Set([...Object.keys(a), ...Object.keys(b)]);
-  return [...names].every((n) => (a[n] ?? null) === (b[n] ?? null));
+  return [...names].every((n) => (a[n] || null) === (b[n] || null));
 }
 
 export function TeamPanel() {

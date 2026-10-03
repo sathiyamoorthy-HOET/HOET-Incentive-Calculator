@@ -222,7 +222,7 @@ export default function AppShell({
 
   const activeConfig = run?.snapshot ?? config;
   const result = useMemo(
-    () => (run ? compute(activeConfig, run.rows, run.kudos, run.leave) : null),
+    () => (run ? compute(activeConfig, run.rows, run.kudos, run.leave, run.away) : null),
     [activeConfig, run]
   );
 

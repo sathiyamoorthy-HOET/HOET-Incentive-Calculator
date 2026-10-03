@@ -35,6 +35,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       snapshot={res.config}
       kudos={res.kudos}
       leave={res.leave}
+      away={res.away}
     />
   );
 }

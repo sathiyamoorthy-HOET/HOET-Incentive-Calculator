@@ -14,10 +14,10 @@ import { parseMonth } from "@/lib/months";
 
 type Col =
   | "name" | "slab" | "mins" | "revised" | "deducted" | "reviewed" | "pts" | "target"
-  | "leave" | "pctv" | "surplus" | "incentive" | "kudos" | "total" | "status";
+  | "away" | "leave" | "pctv" | "surplus" | "incentive" | "kudos" | "total" | "status";
 
 /* Status in the order a manager reads it: cleared, short, blocked, nothing. */
-const STATUS_RANK = { over: 0, under: 1, low: 2, blocked: 3, none: 4 } as const;
+const STATUS_RANK = { over: 0, under: 1, low: 2, blocked: 3, none: 4, away: 5 } as const;
 
 function colValue(r: EditorResult, col: Col) {
   switch (col) {
@@ -29,6 +29,7 @@ function colValue(r: EditorResult, col: Col) {
     case "reviewed": return r.reviewed || null;
     case "pts": return r.pts;
     case "leave": return r.days;
+    case "away": return r.away ? 1 : 0;
     case "target": return r.target;
     case "pctv": return r.pctv;
     case "surplus": return r.surplus > 0 ? r.surplus : null;
@@ -49,6 +50,7 @@ export default function ResultsTab({
   update,
   setKudos,
   setLeave,
+  setAway,
   adjustDirty,
   onSaveAdjust,
   onRerunLive,
@@ -67,6 +69,8 @@ export default function ResultsTab({
   setKudos: (name: string, points: number) => void;
   /** Records an editor's leave this month, which scales their target down. */
   setLeave: (name: string, days: number) => void;
+  /** Marks an editor as lent to another department this month. */
+  setAway: (name: string, away: boolean) => void;
   /** On a saved run: whether the kudos or leave on screen differ from what is stored. */
   adjustDirty?: boolean;
   /** On a saved run: writes the kudos and leave on screen to it. */
@@ -103,6 +107,7 @@ export default function ResultsTab({
   const order = sorted(o.map((_, i) => i), sort, (i, col) => colValue(o[i], col), (i) => o[i].name);
   const head = { sort, onToggle: (col: Col) => setSort(toggleSort(sort, col)) };
   const active = o.filter((r) => r.mins > 0.05 || r.projects > 0);
+  const here = o.filter((r) => !r.away);
   const cleared = o.filter((r) => r.surplus > 0);
   const blocked = o.filter((r) => r.status === "blocked");
   const low = o.filter((r) => r.status === "low");
@@ -148,6 +153,7 @@ export default function ResultsTab({
       config: liveConfig,
       kudos: run.kudos,
       leave: run.leave,
+      away: run.away,
     });
     setSaving(false);
     if (res.ok) {
@@ -172,7 +178,7 @@ export default function ResultsTab({
       <h2>Results</h2>
       <p className="sub">
         Incentive is earned only on points above target. Leave scales the target down to the days
-        worked. Under {Math.round(pipShareOf(config) * 100)}% of target, kudos included, is flagged
+        worked; Away means another department&apos;s month, with no target here. Under {Math.round(pipShareOf(config) * 100)}% of target, kudos included, is flagged
         for a performance improvement plan. Kudos points pay ₹{kudosRateOf(config)} each, target or
         no target.
       </p>
@@ -270,7 +276,7 @@ export default function ResultsTab({
         <div>
           <div className="t">{run.fileName || "Report"}</div>
           <div className="m">
-            {active.length} of {o.length} editors delivered work · {num(t.p)} points ·{" "}
+            {active.length} of {here.length} editors delivered work · {num(t.p)} points ·{" "}
             {inr(t.i + t.k)} payable
             {run.source?.period && (
               <>
@@ -321,7 +327,7 @@ export default function ResultsTab({
             className="btn o"
             onClick={doSaveAdjust}
             disabled={savingAdjust || !adjustDirty}
-            title={adjustDirty ? "Store the leave and kudos typed below on this run" : "Change leave or kudos in the table to enable"}
+            title={adjustDirty ? "Store the away marks, leave and kudos below on this run" : "Change away, leave or kudos in the table to enable"}
           >
             {savingAdjust ? <span className="spin" /> : "Save changes"}
           </button>
@@ -535,7 +541,7 @@ export default function ResultsTab({
       <div className="kpis">
         <Kpi b={num(t.m)} s="Minutes delivered" />
         <Kpi b={num(t.p)} s="Points earned" />
-        <Kpi b={num(t.t)} s={"Total target, " + o.length + " editors"} />
+        <Kpi b={num(t.t)} s={"Total target, " + here.length + " editors"} />
         <Kpi
           b={cleared.length + " of " + active.length}
           s="Cleared target, of those who delivered"
@@ -552,7 +558,7 @@ export default function ResultsTab({
         <div className="row" style={{ marginBottom: 6 }}>
           <h3 style={{ margin: 0 }}>Every editor</h3>
           <span style={{ color: "var(--muted)", fontSize: 12.5 }}>
-            Click a row to see the breakdown by video type. Leave and Kudos can be typed in
+            Click a row to see the breakdown by video type. Away, Leave and Kudos can be set
             {readOnly ? ", then press Save changes" : "; they are saved with the run"}.
           </span>
           <button className="btn o" style={{ marginLeft: "auto" }} onClick={() => exportRun(month, o, config)}>
@@ -583,6 +589,7 @@ export default function ResultsTab({
                   title="Videos reviewed for other editors, and the points earned"
                 />
                 <SortHead {...head} col="pts" label="Points" right />
+                <SortHead {...head} col="away" label="Away" title="Lent to another department this month: no target, nothing paid here" />
                 <SortHead {...head} col="leave" label="Leave" right title="Days of leave this month; the target scales down to the days worked" />
                 <SortHead {...head} col="target" label="Target" right />
                 <SortHead {...head} col="pctv" label="Progress" width={80} />
@@ -657,6 +664,15 @@ export default function ResultsTab({
                       )}
                     </td>
                     <td className="r num"><strong>{num(r.pts)}</strong></td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={r.away}
+                        style={{ width: "auto" }}
+                        aria-label={"Away this month: " + r.name}
+                        onChange={(ev) => setAway(r.name, ev.target.checked)}
+                      />
+                    </td>
                     <td className="r num" onClick={(e) => e.stopPropagation()}>
                       <NumInput
                         value={run.leave[r.name] || 0}
@@ -711,7 +727,7 @@ export default function ResultsTab({
                 if (isOpen) {
                   rows.push(
                     <tr key={r.name + "-det"} className="det on">
-                      <td colSpan={15}>
+                      <td colSpan={16}>
                         <div className="detbox">
                           <div className="detmain">
                             <Breakdown cats={catsOf(config, r)} />
@@ -734,6 +750,7 @@ export default function ResultsTab({
                 <td className="r num">{t.d > 0.05 ? "−" + num(t.d) : "—"}</td>
                 <td className="r num">{t.rp > 0.05 ? num(t.rp) : "—"}</td>
                 <td className="r num">{num(t.p)}</td>
+                <td />
                 <td />
                 <td className="r num">{num(t.t)}</td>
                 <td />

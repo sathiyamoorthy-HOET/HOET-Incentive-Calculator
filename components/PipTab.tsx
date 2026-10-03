@@ -28,7 +28,7 @@ export default function PipTab({ data }: { data: Accountability }) {
   const rowsOf = (k: string) =>
     editors
       .map((e) => ({ e, c: e.cells[k] as GridCell | undefined }))
-      .filter(({ c }) => c && c.status !== "none" && c.status !== "blocked" && underPipLine(config, c.points, c.kudos, c.target))
+      .filter(({ c }) => c && c.status !== "none" && c.status !== "blocked" && c.status !== "away" && underPipLine(config, c.points, c.kudos, c.target))
       .map(({ e, c }) => ({ e, c: c as GridCell }))
       .sort((a, b) => (a.c.points + a.c.kudos) / a.c.target - (b.c.points + b.c.kudos) / b.c.target);
   const rows = month ? rowsOf(month.key) : [];
@@ -38,7 +38,7 @@ export default function PipTab({ data }: { data: Accountability }) {
   const support = month
     ? editors
         .map((e) => ({ e, c: e.cells[month.key] as GridCell | undefined }))
-        .filter(({ c }) => c && c.target > 0 && c.status !== "none" && c.status !== "blocked")
+        .filter(({ c }) => c && c.target > 0 && c.status !== "none" && c.status !== "blocked" && c.status !== "away")
         .map(({ e, c }) => ({ e, c: c as GridCell }))
         .sort((a, b) => share(a.c) - share(b.c))
         .slice(0, 5)

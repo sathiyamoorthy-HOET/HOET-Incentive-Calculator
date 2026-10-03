@@ -372,7 +372,8 @@ export function compute(
   c: Config,
   rows: SourceRow[],
   kudos: Record<string, number> = {},
-  leave: Record<string, number> = {}
+  leave: Record<string, number> = {},
+  away: Record<string, boolean> = {}
 ): Computed {
   type Acc = {
     mins: number;
@@ -550,16 +551,20 @@ export function compute(
   const out: EditorResult[] = c.team
     .map((e) => {
       const rec = per.get(e.name) || blank();
+      const isAway = !!away[e.name];
       const off = leave[e.name];
       const dayCount = daysWorked(c, e, off);
-      const target = targetAfterLeave(c, e, off);
+      /* Away means another department's month: no target here, so nothing
+         above it and nothing paid, whatever the sheet shows. */
+      const target = isAway ? 0 : targetAfterLeave(c, e, off);
       const pts = round(rec.pts + rec.reviewPts, 1);
-      const surplus = Math.max(0, round(pts - target, 1));
+      const surplus = isAway ? 0 : Math.max(0, round(pts - target, 1));
       const incentive = incentiveOf(c, surplus);
-      const kudosPts = Math.max(0, Number(kudos[e.name]) || 0);
+      const kudosPts = isAway ? 0 : Math.max(0, Number(kudos[e.name]) || 0);
       const delivered = rec.mins >= 0.05 || rec.projects > 0;
       let status: RunStatus = "none";
-      if (!delivered && rec.reviewMins < 0.05) status = "none";
+      if (isAway) status = "away";
+      else if (!delivered && rec.reviewMins < 0.05) status = "none";
       else if (!delivered) status = surplus > 0 ? "over" : "under";
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
@@ -567,7 +572,7 @@ export function compute(
          manager, who is outside the daily process and has no target to miss. */
       else if (!e.manager && underPipLine(c, pts, kudosPts, target)) status = "low";
       else status = "under";
-      const kp = Math.max(0, Number(kudos[e.name]) || 0);
+      const kp = kudosPts;
       const kudosInr = kudosInrOf(c, kp);
       return {
         name: e.name,
@@ -598,6 +603,7 @@ export function compute(
         kudos: kp,
         kudosInr,
         total: incentive + kudosInr,
+        away: isAway,
         pctv: target ? pts / target : 0,
         status,
       };

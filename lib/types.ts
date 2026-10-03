@@ -43,6 +43,8 @@ export type Editor = {
    * reviewing, which is work that earns points.
    */
   manager?: boolean;
+  /** The day they joined, "YYYY-MM-DD", so a short first month reads as one. */
+  joined?: string | null;
   /** Set to give this person a target of their own instead of the pattern's. */
   target?: number | null;
   /** Where the payout goes. Shown beside the name; the report never uses it. */
@@ -295,9 +297,14 @@ export type ActiveRun = {
    * this run is scaled to the days they were actually in.
    */
   leave: Record<string, number>;
+  /**
+   * Editors lent to another department this month, by name. They keep their
+   * points on the sheet but carry no target and earn no incentive here.
+   */
+  away: Record<string, boolean>;
 };
 
-export type RunStatus = "over" | "under" | "low" | "blocked" | "none";
+export type RunStatus = "over" | "under" | "low" | "blocked" | "none" | "away";
 
 /** One line of an editor's video-type breakdown, as Results and the editor page show it. */
 export type EditorCat = {
@@ -353,6 +360,8 @@ export type EditorResult = {
   kudosInr: number;
   /** Performance incentive plus kudos: what is actually paid out. */
   total: number;
+  /** Lent to another department this month: no target, nothing paid here. */
+  away: boolean;
   pctv: number;
   status: RunStatus;
 };
@@ -415,6 +424,7 @@ export const STATUS: Record<RunStatus, [string, string]> = {
   low: ["r", "Flagged for PIP"],
   blocked: ["r", "Work not priced"],
   none: ["n", "No work recorded"],
+  away: ["n", "Away this month"],
 };
 
 /** One row of the Access page: who is allowed in, and whether they can sign in. */

@@ -148,7 +148,16 @@ export type SaveRunInput = {
   kudos?: Record<string, number>;
   /** Days of leave by editor name, where a manager entered any. */
   leave?: Record<string, number>;
+  /** Editors away with another department this month, by name. */
+  away?: Record<string, boolean>;
 };
+
+/** Only the names actually marked, so the stored map stays small. */
+function cleanAway(map: Record<string, boolean> | undefined): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const [name, v] of Object.entries(map || {})) if (v) out[name] = true;
+  return out;
+}
 
 /** Only names with a usable number against them, so the stored map stays small. */
 function cleanMap(map: Record<string, number> | undefined, min: number): Record<string, number> {
@@ -209,7 +218,8 @@ export async function saveRun(
 
     const kudos = cleanKudos(input.kudos);
     const leave = cleanLeave(input.leave);
-    const c = compute(input.config, rows, kudos, leave);
+    const away = cleanAway(input.away);
+    const c = compute(input.config, rows, kudos, leave, away);
     const t = totals(c.out);
     const active = c.out.filter((r) => r.mins > 0.05 || r.projects > 0).length;
     const cleared = c.out.filter((r) => r.surplus > 0).length;
@@ -229,6 +239,7 @@ export async function saveRun(
         config_snapshot: input.config,
         kudos,
         leave,
+        away,
         total_minutes: Math.round(t.m * 10) / 10,
         total_points: Math.round(t.p * 10) / 10,
         total_target: Math.round(t.t),
@@ -355,6 +366,7 @@ export async function loadRun(id: number): Promise<
       config: Config;
       kudos: Record<string, number>;
       leave: Record<string, number>;
+      away: Record<string, boolean>;
     }
   | { ok: false; error: string }
 > {
@@ -362,7 +374,7 @@ export async function loadRun(id: number): Promise<
     const { supabase } = await requireUser();
     const { data, error } = await supabase
       .from("runs")
-      .select("month_label, file_name, source_rows, config_snapshot, kudos, leave")
+      .select("month_label, file_name, source_rows, config_snapshot, kudos, leave, away")
       .eq("id", id)
       .single();
     if (error || !data) return { ok: false, error: error?.message || "That run no longer exists." };
@@ -374,6 +386,7 @@ export async function loadRun(id: number): Promise<
       config: data.config_snapshot as Config,
       kudos: (data.kudos as Record<string, number> | null) || {},
       leave: (data.leave as Record<string, number> | null) || {},
+      away: (data.away as Record<string, boolean> | null) || {},
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not open the run." };
@@ -381,14 +394,14 @@ export async function loadRun(id: number): Promise<
 }
 
 /**
- * Changes the kudos points and leave on a run that is already saved,
+ * Changes the kudos points, leave and away marks on a run that is already saved,
  * and re-prices it with its own snapshot so the stored totals and the
  * per-editor rows follow. Nothing else about the run moves: the rows, the
  * rate card and the ledger stay as they were signed off.
  */
 export async function saveAdjustments(
   id: number,
-  input: { kudos: Record<string, number>; leave: Record<string, number> }
+  input: { kudos: Record<string, number>; leave: Record<string, number>; away: Record<string, boolean> }
 ): Promise<ActionResult> {
   try {
     const { supabase } = await requireUser();
@@ -403,7 +416,8 @@ export async function saveAdjustments(
     config.revPen = config.revPen ?? [];
     const kudos = cleanKudos(input.kudos);
     const leave = cleanLeave(input.leave);
-    const c = compute(config, data.source_rows as SourceRow[], kudos, leave);
+    const away = cleanAway(input.away);
+    const c = compute(config, data.source_rows as SourceRow[], kudos, leave, away);
     const t = totals(c.out);
 
     const { error: runError } = await supabase
@@ -411,6 +425,7 @@ export async function saveAdjustments(
       .update({
         kudos,
         leave,
+        away,
         total_target: Math.round(t.t),
         total_surplus: Math.round(t.s * 10) / 10,
         total_incentive: Math.round(t.i + t.k),
@@ -684,10 +699,11 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
     config_snapshot: Config;
     kudos: Record<string, number> | null;
     leave: Record<string, number> | null;
+    away: Record<string, boolean> | null;
   };
   const { data } = await supabase
     .from("runs")
-    .select("id, month, month_label, file_name, created_at, source_rows, config_snapshot, kudos, leave")
+    .select("id, month, month_label, file_name, created_at, source_rows, config_snapshot, kudos, leave, away")
     .in("id", keptIndex.map((r) => r.id));
 
   const byId = new Map(((data as Row[] | null) || []).map((r) => [r.id, r]));
@@ -701,7 +717,7 @@ export async function loadEditorReport(name: string): Promise<EditorReport | nul
   for (const run of kept) {
     const config = run.config_snapshot;
     config.revPen = config.revPen ?? [];
-    const me = compute(config, run.source_rows, run.kudos || {}, run.leave || {}).out.find((r) => r.name === name);
+    const me = compute(config, run.source_rows, run.kudos || {}, run.leave || {}, run.away || {}).out.find((r) => r.name === name);
     /* Absent means this editor was not on the team list when the month was
        run, so the month simply is not part of their history. */
     if (!me) continue;

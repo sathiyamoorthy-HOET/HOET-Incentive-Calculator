@@ -61,6 +61,7 @@ const teamSnap = (c: Config): Snap =>
         e.reviewer ? "reviews" : "edits",
         e.manager ? "manager" : "not a manager",
         e.email?.trim() ? e.email.trim() : "no mail ID",
+        e.joined ? `joined ${e.joined}` : "no joining date",
         `known as ${[...e.alias].sort().join(", ") || "nothing else"}`,
       ].join(" · "),
     ])

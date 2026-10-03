@@ -8,7 +8,7 @@ import EditCard from "./EditCard";
 import NumInput from "./NumInput";
 import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
 
-type Col = "name" | "email" | "slab" | "pattern" | "reviews" | "manager" | "days" | "target";
+type Col = "name" | "email" | "joined" | "slab" | "pattern" | "reviews" | "manager" | "days" | "target";
 
 /** The team in the order asked for, as positions in `config.team`. */
 function orderOf(c: Config, sort: Sort<Col>): number[] {
@@ -18,6 +18,7 @@ function orderOf(c: Config, sort: Sort<Col>): number[] {
     switch (col) {
       case "name": return e.name;
       case "email": return e.email ?? "";
+      case "joined": return e.joined ?? "";
       case "slab": return SLABS.indexOf(e.slab);
       case "pattern": return e.pattern;
       case "reviews": return !!e.reviewer;
@@ -27,6 +28,13 @@ function orderOf(c: Config, sort: Sort<Col>): number[] {
     }
   };
   return sorted(t.map((_, i) => i), sort, value, (i) => t[i].name.trim());
+}
+
+/** "2026-08-14" as "14 Aug 2026". */
+function joinedLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return names[m - 1] ? `${d} ${names[m - 1]} ${y}` : iso;
 }
 
 export default function TeamTab({
@@ -168,6 +176,7 @@ function TeamTable({
           <tr>
             <SortHead {...head} col="name" label="Editor" width={260} />
             <SortHead {...head} col="email" label="Mail ID" width={320} />
+            <SortHead {...head} col="joined" label="Joined" width={130} />
             <SortHead {...head} col="slab" label="Slab" />
             <SortHead {...head} col="pattern" label="Work pattern" />
             <SortHead
@@ -221,6 +230,20 @@ function TeamTable({
                     />
                   ) : e.email?.trim() ? (
                     <a className="mail" href={"mailto:" + e.email.trim()}>{e.email.trim()}</a>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {editing ? (
+                    <input
+                      type="date"
+                      value={e.joined ?? ""}
+                      aria-label={"Joined: " + e.name}
+                      onChange={(ev) => update((d) => { d.team[i].joined = ev.target.value || null; })}
+                    />
+                  ) : e.joined ? (
+                    <span className="num">{joinedLabel(e.joined)}</span>
                   ) : (
                     <span className="muted">—</span>
                   )}

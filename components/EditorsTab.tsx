@@ -142,13 +142,9 @@ export default function EditorsTab({ data }: { data: Accountability }) {
                       {...head}
                       key={m.key}
                       col={`m:${m.key}`}
+                      label={monthShort(m.key)}
                       right
-                      title={"Sort by " + monthShort(m.key)}
-                      before={
-                        <Link href={"/history/" + m.runId} title={m.label || m.fileName || ""}>
-                          {monthShort(m.key)}
-                        </Link>
-                      }
+                      title={"Sort by " + monthShort(m.key) + (m.fileName ? " · " + m.fileName : "")}
                     />
                   ))}
                   <SortHead {...head} col="cleared" label="Cleared" right />

@@ -114,13 +114,13 @@ export async function exportTeam(c: Config) {
   const aoa: (string | number)[][] = [
     [
       "Editor", "Mail ID", "Slab", "Experience", "Work pattern", "Days available",
-      "Target points", "Reviews",
+      "Target points", "Reviews", "Manager",
     ],
   ];
   c.team.forEach((e) =>
     aoa.push([
       e.name, e.email ?? "", e.slab, EXP[e.slab], e.pattern, daysOf(c, e), targetOf(c, e),
-      e.reviewer ? "yes" : "",
+      e.reviewer ? "yes" : "", e.manager ? "yes" : "",
     ])
   );
   const wb = XLSX.utils.book_new();

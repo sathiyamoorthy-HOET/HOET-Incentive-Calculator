@@ -8,7 +8,7 @@ import EditCard from "./EditCard";
 import NumInput from "./NumInput";
 import { Sort, SortHead, sorted, toggleSort } from "./SortHead";
 
-type Col = "name" | "email" | "slab" | "pattern" | "reviews" | "days" | "target";
+type Col = "name" | "email" | "slab" | "pattern" | "reviews" | "manager" | "days" | "target";
 
 /** The team in the order asked for, as positions in `config.team`. */
 function orderOf(c: Config, sort: Sort<Col>): number[] {
@@ -21,6 +21,7 @@ function orderOf(c: Config, sort: Sort<Col>): number[] {
       case "slab": return SLABS.indexOf(e.slab);
       case "pattern": return e.pattern;
       case "reviews": return !!e.reviewer;
+      case "manager": return !!e.manager;
       case "days": return daysOf(c, e);
       case "target": return targetOf(c, e);
     }
@@ -91,7 +92,8 @@ export default function TeamTab({
         Slab sets the points rate. Work pattern sets the monthly target. Reduce days available for
         approved leave, joiners and leavers. Mark someone a reviewer when they review rather than
         edit, and give them a target of their own — an editing target is not one they can clear.
-        Changes here are shared with everyone.
+        Mark a manager, who is outside the daily process, to keep them off the PIP page. Changes
+        here are shared with everyone.
       </p>
 
       <EditCard
@@ -173,6 +175,12 @@ function TeamTable({
               col="reviews"
               label="Reviews"
               title="Reviews work rather than editing it"
+            />
+            <SortHead
+              {...head}
+              col="manager"
+              label="Manager"
+              title="Outside the daily editing process; never on the PIP page"
             />
             <SortHead {...head} col="days" label="Days available" right />
             <SortHead {...head} col="target" label="Target" right />
@@ -256,6 +264,21 @@ function TeamTable({
                     />
                   ) : e.reviewer ? (
                     <span className="pill n">Reviewer</span>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {editing ? (
+                    <input
+                      type="checkbox"
+                      checked={!!e.manager}
+                      style={{ width: "auto" }}
+                      aria-label={"Manager: " + e.name}
+                      onChange={(ev) => update((d) => { d.team[i].manager = ev.target.checked; })}
+                    />
+                  ) : e.manager ? (
+                    <span className="pill n">Manager</span>
                   ) : (
                     <span className="muted">—</span>
                   )}

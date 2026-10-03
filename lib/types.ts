@@ -37,6 +37,12 @@ export type Editor = {
   alias: string[];
   /** Reviews work rather than editing it, so no editing is expected of them. */
   reviewer?: boolean;
+  /**
+   * A manager: outside the daily editing process, so a missed target is not
+   * theirs to answer for and the PIP page leaves them out. Separate from
+   * reviewing, which is work that earns points.
+   */
+  manager?: boolean;
   /** Set to give this person a target of their own instead of the pattern's. */
   target?: number | null;
   /** Where the payout goes. Shown beside the name; the report never uses it. */

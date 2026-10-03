@@ -59,6 +59,7 @@ const teamSnap = (c: Config): Snap =>
         e.days == null ? "standard days" : `${n(e.days)} days`,
         e.target == null ? "pattern target" : `target ${n(e.target)}`,
         e.reviewer ? "reviews" : "edits",
+        e.manager ? "manager" : "not a manager",
         e.email?.trim() ? e.email.trim() : "no mail ID",
         `known as ${[...e.alias].sort().join(", ") || "nothing else"}`,
       ].join(" · "),

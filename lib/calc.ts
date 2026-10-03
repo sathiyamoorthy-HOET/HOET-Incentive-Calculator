@@ -564,8 +564,8 @@ export function compute(
       else if (rec.untyped > 0.05 && pts < 0.05) status = "blocked";
       else if (surplus > 0) status = "over";
       /* Short of even the PIP line is not a near miss: flag it. Not for a
-         reviewer, whose job is other people's videos, not a target. */
-      else if (!e.reviewer && underPipLine(c, pts, kudosPts, target)) status = "low";
+         manager, who is outside the daily process and has no target to miss. */
+      else if (!e.manager && underPipLine(c, pts, kudosPts, target)) status = "low";
       else status = "under";
       const kp = Math.max(0, Number(kudos[e.name]) || 0);
       const kudosInr = kudosInrOf(c, kp);

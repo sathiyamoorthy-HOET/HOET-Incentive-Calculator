@@ -349,29 +349,6 @@ export default function RatesTab({
               "at the second. Rungs are counted from the editor's own target, so the same ladder " +
               "serves every work pattern."
             }
-            tools={
-              <>
-                <button
-                  className="btn o"
-                  onClick={() =>
-                    update((d) => {
-                      d.payBands = d.payBands ?? [];
-                      const last = d.payBands[d.payBands.length - 1];
-                      d.payBands.push(
-                        last ? { from: last.from + 60, rate: last.rate + 25 } : { from: 0, rate: 175 }
-                      );
-                    })
-                  }
-                >
-                  Add a rung
-                </button>
-                {bands.length > 1 && (
-                  <button className="btn o" onClick={() => update((d) => { d.payBands?.pop(); })}>
-                    Remove the last
-                  </button>
-                )}
-              </>
-            }
           >
             {(editing) => (
               <>
@@ -444,6 +421,7 @@ export default function RatesTab({
                         <th style={{ width: 150 }}>Points above target</th>
                         <th className="r" style={{ width: 130 }}>Per point</th>
                         <th>What that is, in points scored</th>
+                        {editing && <th style={{ width: 36 }} />}
                       </tr>
                     </thead>
                     <tbody>
@@ -492,13 +470,47 @@ export default function RatesTab({
                                 )
                                 .join(" · ")}
                             </td>
+                            {editing && (
+                              <td>
+                                <button
+                                  className="x"
+                                  aria-label={"Remove the rung from +" + b.from}
+                                  title="Remove this rung"
+                                  onClick={() => update((d) => { d.payBands.splice(i, 1); })}
+                                >
+                                  ×
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
                       {bands.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="muted">
+                          <td colSpan={editing ? 4 : 3} className="muted">
                             No ladder set, so clearing target pays nothing.
+                          </td>
+                        </tr>
+                      )}
+                      {editing && (
+                        <tr>
+                          <td colSpan={4}>
+                            <button
+                              className="btn o"
+                              aria-label="Add a rung"
+                              title="Add a rung above the last one"
+                              onClick={() =>
+                                update((d) => {
+                                  d.payBands = d.payBands ?? [];
+                                  const last = d.payBands[d.payBands.length - 1];
+                                  d.payBands.push(
+                                    last ? { from: last.from + 60, rate: last.rate + 25 } : { from: 0, rate: 175 }
+                                  );
+                                })
+                              }
+                            >
+                              +
+                            </button>
                           </td>
                         </tr>
                       )}

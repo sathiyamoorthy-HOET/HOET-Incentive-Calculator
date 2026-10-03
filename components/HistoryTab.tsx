@@ -7,7 +7,7 @@ import { inr, num } from "@/lib/calc";
 import { RunSummary } from "@/lib/types";
 import { deleteRun } from "@/app/actions";
 
-export default function HistoryTab({ runs }: { runs: RunSummary[] }) {
+export default function HistoryTab({ runs, me }: { runs: RunSummary[]; me: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +81,16 @@ export default function HistoryTab({ runs }: { runs: RunSummary[] }) {
                         <Link className="btn" href={"/history/" + r.id}>
                           Open
                         </Link>
-                        <button className="btn o" disabled={busy === r.id} onClick={() => remove(r.id)}>
+                        <button
+                          className="btn o"
+                          disabled={busy === r.id || (!!me && !!r.created_by && r.created_by !== me)}
+                          title={
+                            me && r.created_by && r.created_by !== me
+                              ? "Saved by " + (r.author || "someone else") + ", so only they can delete it"
+                              : undefined
+                          }
+                          onClick={() => remove(r.id)}
+                        >
                           Delete
                         </button>
                       </div>
@@ -95,7 +104,9 @@ export default function HistoryTab({ runs }: { runs: RunSummary[] }) {
       </div>
 
       <p className="sub">
-        Only the person who saved a run can delete it. Everyone signed in can open any run.
+        Only the person who saved a run can delete it; a Delete button you cannot press says who
+        that is. Everyone signed in can open any run, and saving a month again replaces the earlier
+        save for that month wherever the numbers are added up.
       </p>
     </section>
   );

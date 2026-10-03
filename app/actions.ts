@@ -348,8 +348,17 @@ export async function saveRun(
 export async function deleteRun(id: number): Promise<ActionResult> {
   try {
     const { supabase } = await requireUser();
-    const { error } = await supabase.from("runs").delete().eq("id", id);
+    /* The database lets only the author delete a run, and says so by deleting
+       nothing rather than by refusing. Count what went, so a run that is not
+       yours gets a reason instead of a button that does nothing. */
+    const { data, error } = await supabase.from("runs").delete().eq("id", id).select("id");
     if (error) return { ok: false, error: error.message };
+    if (!data || !data.length) {
+      return {
+        ok: false,
+        error: "Only the person who saved this run can delete it. Ask them to, or save the month again yourself: the newest save is the one that counts.",
+      };
+    }
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) {
